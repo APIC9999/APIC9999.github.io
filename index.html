@@ -1,0 +1,757 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>APIC 실험실 장비예약</title>
+<style>
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",sans-serif;color:#1f2430;background:#fff;display:flex;flex-direction:column;font-size:14px}
+button{font:inherit;cursor:pointer}
+input,textarea,select{font:inherit}
+.top{background:#2a3166;color:#fff;display:flex;align-items:center;justify-content:space-between;padding:8px 14px;gap:10px;flex:0 0 auto}
+.brand{font-weight:700;font-size:16px;display:flex;align-items:center;gap:8px}
+.badge{font-size:11px;background:#f5a623;color:#3b2a00;border-radius:10px;padding:2px 8px;font-weight:600}
+.who{display:flex;align-items:center;gap:8px;font-size:13px}
+.who button{background:rgba(255,255,255,.14);color:#fff;border:0;border-radius:6px;padding:5px 10px}
+.who button:hover{background:rgba(255,255,255,.25)}
+.brand{white-space:nowrap}
+.who{white-space:nowrap;flex:0 0 auto}
+.who button{white-space:nowrap}
+.who button.rep:disabled{opacity:.35;cursor:not-allowed}
+.who button.rep.on{background:#f5a623;color:#3b2a00;font-weight:700}
+.gridwrap{flex:1 1 auto;min-height:0;overflow:auto;background:#fff}
+table.grid{border-collapse:separate;border-spacing:0;min-width:100%;table-layout:fixed;width:max-content;user-select:none;-webkit-user-select:none}
+table.grid th,table.grid td{height:38px;border-bottom:1px solid #e3e6ee;border-right:1px solid #f0f1f6;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+table.grid thead th{position:sticky;top:0;z-index:3;background:#2a3166;color:#fff;font-weight:600;width:106px;min-width:106px}
+table.grid thead th.corner{left:0;z-index:5;width:128px;min-width:128px;text-align:left;padding-left:12px}
+table.grid thead th.nowh{background:#3e4aa0}
+table.grid th.datec{position:sticky;left:0;z-index:2;background:#fff;font-weight:500;text-align:left;padding-left:12px;border-right:1px solid #d5d9e6}
+tr.sat th.datec{color:#2459c7}
+tr.sun th.datec{color:#c62828}
+tr.sat td,tr.sun td,tr.sat th.datec,tr.sun th.datec{background-color:#f6f7fb}
+tr.today th.datec{background:#fff4cf;font-weight:700}
+tr.today td{background-color:#fffaf0}
+.split{border-left:2px solid #1f2430!important}
+td.slot,td.ruser{font-weight:400;color:#000;cursor:pointer}
+td.slot:not(.taken):not(.past):hover,td.ruser:not(.taken):hover{background:#e6f1ff!important}
+td.slot.taken,td.ruser.taken{background:#e5e7eb;color:#000;font-weight:400}
+td.slot.mine,td.ruser.mine{background:#dbeafe!important;color:#0b4fc4;font-weight:700}
+td.slot.repair,td.ruser.repair{background:#fde3b8!important;color:#6a3500;font-weight:600}
+td.slot.locked,td.ruser.locked{cursor:default}
+td.slot.past:not(.taken){background:repeating-linear-gradient(135deg,#f4f4f6,#f4f4f6 6px,#eeeef1 6px,#eeeef1 12px);cursor:not-allowed}
+td.slot.sel{outline:2px solid #2a6df4;outline-offset:-2px;background:#cfe2ff!important}
+/* 챔버형(신뢰성방) */
+table.grid.room td{position:relative}
+td.rdate.editable{cursor:pointer}
+td.rdate.editable:hover{background:#e6f1ff}
+.dateinp{position:absolute;inset:0;width:100%;height:100%;opacity:0;cursor:pointer;border:0;padding:0;margin:0}
+tr.rm-note td,tr.rm-note th{height:96px}
+td.rnote{padding:0!important;white-space:pre-wrap!important;text-overflow:clip!important;font-size:13px;vertical-align:top;text-align:left!important}
+td.rnote .ntxt{padding:6px}
+textarea.note{display:block;width:100%;height:100%;border:0;background:transparent;resize:none;padding:6px;font-size:13px;outline:none;user-select:text;-webkit-user-select:text}
+textarea.note:focus{background:#f3f8ff}
+.empty{padding:50px 20px;text-align:center;color:#777}
+.tabs{flex:0 0 auto;display:flex;align-items:center;gap:2px;overflow-x:auto;background:#f1f3f4;border-top:1px solid #d5d8dc;padding:6px 8px;scrollbar-width:thin}
+.tabs button{flex:0 0 auto;border:0;background:transparent;padding:8px 16px;border-radius:6px;color:#444;white-space:nowrap}
+.tabs button:hover{background:#e2e5e9}
+.tabs button.active{background:#d9e6fb;color:#0b4fc4;font-weight:700}
+.tabs button.add{font-size:18px;padding:4px 12px}
+.login{margin:auto;width:min(360px,92vw);background:#fff;border:1px solid #dde1ec;border-radius:12px;padding:28px 24px;box-shadow:0 8px 30px rgba(30,40,90,.1)}
+.login h1{margin:0 0 4px;font-size:20px;color:#2a3166}
+.login p{margin:0 0 18px;color:#6b7280;font-size:13px}
+.login label{display:block;font-size:12px;color:#555;margin:12px 0 4px}
+.login input{width:100%;padding:10px 12px;border:1px solid #c9cedb;border-radius:8px}
+.login button.go{width:100%;margin-top:18px;padding:11px;border:0;border-radius:8px;background:#2a3166;color:#fff;font-weight:600}
+.login .err{color:#c62828;font-size:13px;min-height:18px;margin-top:10px}
+.login .first{background:#fff6e0;border:1px solid #f1d38a;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#6a4b00;margin-bottom:6px}
+.linkbtn{border:0;background:none;color:#6b7280;text-decoration:underline;font-size:12px}
+.wrapc{flex:1;display:flex}
+#modal{position:fixed;inset:0;background:rgba(15,20,40,.45);display:none;align-items:center;justify-content:center;z-index:50}
+#modal.open{display:flex}
+.mbox{background:#fff;border-radius:12px;width:min(640px,94vw);max-height:88vh;overflow:auto;padding:18px 20px}
+.mhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.mhead button{border:0;background:none;font-size:20px}
+.mbox h3{margin:18px 0 8px;font-size:14px;color:#2a3166}
+.item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #eef0f5;flex-wrap:wrap}
+.item .nm{flex:1;font-weight:600}
+.item .tag{font-size:11px;background:#e8ecf8;color:#2a3166;border-radius:8px;padding:1px 7px}
+.item button,.row button{border:1px solid #c9cedb;background:#fff;border-radius:6px;padding:4px 9px;font-size:12.5px}
+.item button.del{color:#c62828;border-color:#efc3c3}
+.coled{background:#f7f8fc;border-radius:8px;padding:6px 10px 10px;margin:4px 0 8px}
+.coled .item{border-bottom:1px dashed #e1e4ee}
+.row{display:flex;gap:6px;margin-top:10px;align-items:center;flex-wrap:wrap}
+.row input:not([type=checkbox]),.row select{flex:1;min-width:90px;padding:7px 9px;border:1px solid #c9cedb;border-radius:6px;background:#fff}
+.row button{background:#2a3166;color:#fff;border-color:#2a3166}
+#toast{position:fixed;left:50%;bottom:70px;transform:translateX(-50%);background:#222;color:#fff;padding:9px 16px;border-radius:20px;font-size:13px;opacity:0;pointer-events:none;transition:opacity .2s;z-index:99;max-width:90vw}
+#toast.show{opacity:.94}
+.help{font-size:12px;color:#8a90a2;padding:4px 14px;background:#fafbfd;border-top:1px solid #eef0f5;flex:0 0 auto}
+.help.rep{background:#fff2d9;color:#7a4a00}
+
+/* ---------- 모바일: 작게 (한 화면에 날짜열 + 시간 4~5칸) ---------- */
+@media (max-width:700px){
+  body{font-size:12px}
+  .top{padding:6px 8px;gap:6px}
+  .brand{font-size:12px;min-width:0;overflow:hidden;text-overflow:ellipsis}
+  .badge{display:none}
+  .who{font-size:11px;gap:4px}
+  .who button{padding:4px 7px;font-size:11px}
+  .who .admtag{display:none}
+  table.grid th,table.grid td{height:24px;padding:0 2px;font-size:12px}
+  table.grid thead th{width:60px;min-width:60px;font-size:11px}
+  table.grid thead th.corner{width:80px;min-width:80px;padding-left:6px;font-size:11px}
+  table.grid th.datec{padding-left:6px;font-size:11px}
+  table.grid.room thead th{width:72px;min-width:72px}
+  table.grid.room td,table.grid.room th{height:30px}
+  tr.rm-note td,tr.rm-note th{height:70px!important}
+  td.rnote,textarea.note{font-size:12px}
+  .tabs{padding:3px 4px}
+  .tabs button{padding:6px 10px;font-size:12px}
+  .help{font-size:10px;padding:2px 8px}
+}
+</style>
+</head>
+<body>
+<div id="app" style="display:flex;flex-direction:column;flex:1;min-height:0"></div>
+<div id="modal"></div>
+<div id="toast"></div>
+
+<script type="module">
+/* ============================================================
+   1) 설정
+   Firebase 값을 넣으면 실시간 공유, 비워두면(YOUR_ 상태) "데모 모드"(이 브라우저에만 저장)
+   ============================================================ */
+const firebaseConfig = {
+    apiKey: "AIzaSyAlkvGNSdTIj6P4TwSMnPeFYSYxDBrz8BU",
+    authDomain: "apic-6244b.firebaseapp.com",
+    projectId: "apic-6244b",
+    storageBucket: "apic-6244b.firebasestorage.app",
+    messagingSenderId: "95470777162",
+    appId: "1:95470777162:web:24aa96229015f9de7cc7b3"
+  };
+
+const TITLE = "APIC 실험실 장비예약";
+const ADMIN_CODE = "9999";          // 관리자 모드 진입 코드
+const REPAIR = "수리중";            // 수리 예약 표시 이름
+const DEFAULT_TABS = [
+  ...["SEM","폴리셔","오토폴리셔","멀티프랩","스크린프린터","대기리플로우","저속전단","고속전단","LAB","진공리플로우","플립칩본더","웨이퍼본더"].map(name=>({name})),
+  { name:"신뢰성방", type:"room", cols:["열충격1호","열충격2호","열충격3호","열사이클","항온항습"].map((n,i)=>({id:'c'+i,name:n})) },
+];
+const HOURS = Array.from({length:15},(_,i)=>9+i);   // 9~10시 ... 23~24시
+const DAYS = 22;                                    // 오늘 포함 22일(3주+1일)
+const USE_FIREBASE = !!firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("YOUR_");
+const PIN_RE = /^\d{4}$/;
+
+/* ---------------- 유틸 ---------------- */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+const pad = n => String(n).padStart(2,'0');
+const ymd = d => `${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
+const DOW = ['일','월','화','수','목','금','토'];
+const parseYmd = s => { const [y,m,d]=s.split('-').map(Number); return new Date(y,m-1,d); };
+const label = s => { const d=parseYmd(s); return `${String(d.getFullYear()).slice(2)}/${pad(d.getMonth()+1)}/${pad(d.getDate())} (${DOW[d.getDay()]})`; };
+const shortDate = s => s ? `${s.slice(2,4)}.${s.slice(5,7)}.${s.slice(8,10)}` : '';
+const seedTabs = () => DEFAULT_TABS.map((d,i)=>({id:'t'+i,name:d.name,order:i,type:d.type||'grid',cols:JSON.parse(JSON.stringify(d.cols||[]))}));
+
+async function hashPin(name, pin){
+  const s = `${name}::${pin}`;
+  if (window.crypto && crypto.subtle){
+    const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+    return [...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('');
+  }
+  let h1=0xdeadbeef,h2=0x41c6ce57;
+  for(let i=0;i<s.length;i++){const c=s.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677);}
+  h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);
+  h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);
+  return 'x'+(4294967296*(2097151&h2)+(h1>>>0)).toString(16);
+}
+
+let toastTimer;
+function toast(msg){ const t=$('#toast'); t.textContent=msg; t.classList.add('show'); clearTimeout(toastTimer); toastTimer=setTimeout(()=>t.classList.remove('show'),2400); }
+
+// PIN 입력칸(class="pin")은 숫자만, 최대 4자리
+document.addEventListener('input',e=>{ if(e.target.matches&&e.target.matches('input.pin')) e.target.value=e.target.value.replace(/\D/g,'').slice(0,4); });
+
+/* ============================================================
+   2) 저장소: 데모(localStorage) / Firebase(Firestore)
+   ============================================================ */
+function makeLocalStore(){
+  const KEY='eqres_demo_v2';
+  const subs=new Set();
+  const load=()=>{ try{return JSON.parse(localStorage.getItem(KEY))}catch{return null} };
+  let db = load() || { ver:3, tabs:seedTabs(), users:{}, res:{}, rooms:{} };
+  if(!db.rooms) db.rooms={};
+  if((db.ver||2)<3){            // 이전 데모 데이터에 새 기본 탭 추가
+    DEFAULT_TABS.forEach((d,i)=>{ if(i>=11 && !db.tabs.find(t=>t.name===d.name)) db.tabs.push(seedTabs()[i]); });
+    db.ver=3; localStorage.setItem(KEY,JSON.stringify(db));
+  }
+  const emit=()=>subs.forEach(f=>f());
+  const save=()=>{ localStorage.setItem(KEY,JSON.stringify(db)); emit(); };
+  window.addEventListener('storage',e=>{ if(e.key===KEY){ db=load()||db; emit(); } });
+  const watch=(getter,cb)=>{ const f=()=>cb(getter()); subs.add(f); f(); return ()=>subs.delete(f); };
+  const roomsOf=tabId=>(db.rooms[tabId]=db.rooms[tabId]||{});
+  return {
+    mode:'demo',
+    async initIfNeeded(){},
+    watchTabs:cb=>watch(()=>[...db.tabs].sort((a,b)=>a.order-b.order),cb),
+    async addTab(name,type){ db.tabs.push({id:'t'+Date.now(),name,order:Date.now(),type:type||'grid',cols:[]}); save(); },
+    async renameTab(id,name){ const t=db.tabs.find(x=>x.id===id); if(t){t.name=name;save();} },
+    async setCols(id,cols){ const t=db.tabs.find(x=>x.id===id); if(t){t.cols=cols;save();} },
+    async deleteTab(id){ db.tabs=db.tabs.filter(t=>t.id!==id); delete db.res[id]; delete db.rooms[id]; save(); },
+    watchRes:(tabId,from,cb)=>watch(()=>Object.values(db.res[tabId]||{}).filter(r=>r.date>=from),cb),
+    async reserve(tabId,date,hour,name){
+      const k=date+'_'+hour; db.res[tabId]=db.res[tabId]||{};
+      if(db.res[tabId][k]) throw new Error('taken');
+      db.res[tabId][k]={date,hour,name}; save();
+    },
+    async cancel(tabId,date,hour){ if(db.res[tabId]){ delete db.res[tabId][date+'_'+hour]; save(); } },
+    watchRoom:(tabId,cb)=>watch(()=>new Map(Object.entries(db.rooms[tabId]||{})),cb),
+    async roomReserve(tabId,colId,name){
+      const o=roomsOf(tabId); if(o[colId]&&o[colId].user) throw new Error('taken');
+      o[colId]={...(o[colId]||{}),user:name,start:'',end:''}; save();
+    },
+    async roomRelease(tabId,colId){ if(db.rooms[tabId]){ delete db.rooms[tabId][colId]; save(); } },
+    async roomSet(tabId,colId,f){ const o=roomsOf(tabId); o[colId]={...(o[colId]||{}),...f}; save(); },
+    async getUser(name){ return db.users[name]||null; },
+    async countUsers(){ return Object.keys(db.users).length; },
+    watchUsers:cb=>watch(()=>Object.values(db.users),cb),
+    async setUser(u){ db.users[u.name]=u; save(); },
+    async deleteUser(name){ delete db.users[name]; save(); },
+  };
+}
+
+async function makeFirebaseStore(){
+  const V='10.14.1';
+  const appMod = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
+  const fs = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
+  const {collection,doc,getDoc,getDocs,setDoc,deleteDoc,onSnapshot,query,where,orderBy,limit,runTransaction,writeBatch,addDoc,updateDoc} = fs;
+  const app = appMod.initializeApp(firebaseConfig);
+  const db = fs.getFirestore(app);
+  const resCol = tabId => collection(db,'equipments',tabId,'reservations');
+  const roomCol = tabId => collection(db,'equipments',tabId,'rooms');
+  const wipe = async col=>{
+    const snap=await getDocs(col);
+    for(let i=0;i<snap.docs.length;i+=400){ const b=writeBatch(db); snap.docs.slice(i,i+400).forEach(d=>b.delete(d.ref)); await b.commit(); }
+  };
+  return {
+    mode:'firebase',
+    async initIfNeeded(){   // 최초 1회 기본 장비 탭 생성
+      const m = doc(db,'meta','init');
+      if((await getDoc(m)).exists()) return;
+      const b = writeBatch(db);
+      DEFAULT_TABS.forEach((d,i)=>b.set(doc(db,'equipments','eq_'+i),{name:d.name,order:i,type:d.type||'grid',cols:d.cols||[]}));
+      b.set(m,{at:Date.now()});
+      await b.commit();
+    },
+    watchTabs:cb=>onSnapshot(query(collection(db,'equipments'),orderBy('order')),
+      s=>cb(s.docs.map(d=>({id:d.id,...d.data()}))), e=>toast('탭 불러오기 실패: '+e.message)),
+    async addTab(name,type){ await addDoc(collection(db,'equipments'),{name,order:Date.now(),type:type||'grid',cols:[]}); },
+    async renameTab(id,name){ await updateDoc(doc(db,'equipments',id),{name}); },
+    async setCols(id,cols){ await updateDoc(doc(db,'equipments',id),{cols}); },
+    async deleteTab(id){ await wipe(resCol(id)); await wipe(roomCol(id)); await deleteDoc(doc(db,'equipments',id)); },
+    watchRes:(tabId,from,cb)=>onSnapshot(query(resCol(tabId),where('date','>=',from)),
+      s=>cb(s.docs.map(d=>d.data())), e=>toast('예약 불러오기 실패: '+e.message)),
+    async reserve(tabId,date,hour,name){
+      const ref=doc(db,'equipments',tabId,'reservations',`${date}_${hour}`);
+      await runTransaction(db,async tx=>{
+        if((await tx.get(ref)).exists()) throw new Error('taken');
+        tx.set(ref,{date,hour,name,createdAt:Date.now()});
+      });
+    },
+    async cancel(tabId,date,hour){ await deleteDoc(doc(db,'equipments',tabId,'reservations',`${date}_${hour}`)); },
+    watchRoom:(tabId,cb)=>onSnapshot(roomCol(tabId),
+      s=>cb(new Map(s.docs.map(d=>[d.id,d.data()]))), e=>toast('불러오기 실패: '+e.message)),
+    async roomReserve(tabId,colId,name){
+      const ref=doc(db,'equipments',tabId,'rooms',colId);
+      await runTransaction(db,async tx=>{
+        const s=await tx.get(ref);
+        if(s.exists()&&s.data().user) throw new Error('taken');
+        tx.set(ref,{user:name,start:'',end:''},{merge:true});
+      });
+    },
+    async roomRelease(tabId,colId){ await deleteDoc(doc(db,'equipments',tabId,'rooms',colId)); },
+    async roomSet(tabId,colId,f){ await setDoc(doc(db,'equipments',tabId,'rooms',colId),f,{merge:true}); },
+    async getUser(name){ const s=await getDoc(doc(db,'users',name)); return s.exists()?s.data():null; },
+    async countUsers(){ return (await getDocs(query(collection(db,'users'),limit(1)))).size; },
+    watchUsers:cb=>onSnapshot(collection(db,'users'),s=>cb(s.docs.map(d=>d.data()))),
+    async setUser(u){ await setDoc(doc(db,'users',u.name),u); },
+    async deleteUser(name){ await deleteDoc(doc(db,'users',name)); },
+  };
+}
+
+/* ============================================================
+   3) 앱 상태
+   ============================================================ */
+const state = {
+  store:null, user:null, tabs:[], activeTab:localStorage.getItem('eqres_tab')||null,
+  res:new Map(), room:new Map(), today:ymd(new Date()), hour:new Date().getHours(),
+  unsubRes:null, unsubUsers:null, subKey:'', users:[], panelOpen:false, colEdit:null,
+  repair:false, pending:false,
+  adminMode: sessionStorage.getItem('eqres_admin')==='1',
+};
+const isAdmin = () => state.adminMode;
+const isPastSlot = (date,hr) => date===state.today && hr<new Date().getHours();
+const curTab = () => state.tabs.find(t=>t.id===state.activeTab);
+const isRoom = t => t && t.type==='room';
+
+/* ---------------- 세션/로그인 ---------------- */
+const SESS='eqres_session';
+function saveSession(u){ localStorage.setItem(SESS,JSON.stringify({name:u.name,hash:u.pinHash})); }
+
+async function verify(){
+  if(!state.user) return false;
+  try{
+    const u=await state.store.getUser(state.user.name);
+    if(!u || u.pinHash!==state.user.pinHash){ logout('계정 정보가 변경되어 로그아웃되었습니다'); return false; }
+    return true;
+  }catch(e){ toast('서버 확인 실패: '+e.message); return false; }
+}
+
+function logout(msg){
+  localStorage.removeItem(SESS);
+  state.unsubRes&&state.unsubRes(); state.unsubRes=null; state.subKey=''; state.res=new Map(); state.room=new Map();
+  state.user=null; state.adminMode=false; state.repair=false; sessionStorage.removeItem('eqres_admin');
+  closePanel(); showLogin();
+  if(msg) toast(msg);
+}
+
+async function showLogin(){
+  $('#app').innerHTML=`<div class="wrapc"><div class="login">
+    <h1>${TITLE}</h1><p>이름과 PIN(숫자 4자리)으로 로그인하세요${state.store.mode==='demo'?' (데모 모드)':''}</p>
+    <div id="firstBox"></div>
+    <label>이름</label><input id="lgName" autocomplete="username" autocapitalize="off">
+    <label>PIN (숫자 4자리)</label><input id="lgPin" class="pin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password">
+    <button class="go" id="lgGo">로그인</button><div class="err" id="lgErr"></div>
+    <div style="text-align:center;margin-top:10px"><button class="linkbtn" id="lgAdmin">관리자 모드</button></div></div></div>`;
+  $('#lgAdmin').onclick=openPanel;
+  try{
+    if((await state.store.countUsers())===0)
+      $('#firstBox').innerHTML='<div class="first">등록된 계정이 없습니다. 아래 "관리자 모드"에서 코드를 입력하고 계정을 만들어 주세요.</div>';
+  }catch(e){ $('#lgErr').textContent='서버 연결 실패: '+e.message; }
+  const go=async()=>{
+    const name=$('#lgName').value.trim(), pin=$('#lgPin').value, err=$('#lgErr');
+    err.textContent='';
+    if(!name||!pin){ err.textContent='이름과 PIN을 입력하세요'; return; }
+    if(!PIN_RE.test(pin)){ err.textContent='PIN은 숫자 4자리입니다'; return; }
+    try{
+      const u=await state.store.getUser(name);
+      if(!u||u.pinHash!==await hashPin(name,pin)){ err.textContent='이름 또는 PIN이 올바르지 않습니다'; return; }
+      state.user=u; saveSession(u); startApp();
+    }catch(e){ err.textContent='오류: '+e.message; }
+  };
+  $('#lgGo').onclick=go;
+  $('#lgPin').onkeydown=e=>{ if(e.key==='Enter') go(); };
+  $('#lgName').onkeydown=e=>{ if(e.key==='Enter') $('#lgPin').focus(); };
+  $('#lgName').focus();
+}
+
+/* ---------------- 메인 화면 ---------------- */
+function renderShell(){
+  $('#app').innerHTML=`
+   <header class="top"><div class="brand">${TITLE}${state.store.mode==='demo'?'<span class="badge">데모 모드</span>':''}</div>
+     <div class="who"><span id="whoName"></span>
+       <button id="btnRepair" class="rep" title="관리자 모드에서만 사용 가능">수리</button>
+       <button id="btnAdmin">관리</button><button id="btnOut">로그아웃</button></div></header>
+   <main class="gridwrap" id="gridwrap"></main>
+   <div class="help" id="help"></div>
+   <footer class="tabs" id="tabs"></footer>`;
+  $('#btnOut').onclick=()=>logout();
+  $('#btnAdmin').onclick=openPanel;
+  $('#btnRepair').onclick=()=>{
+    if(!isAdmin()) return toast('관리자 모드에서만 사용할 수 있습니다');
+    state.repair=!state.repair; syncHeader(); toast(state.repair?'수리 모드 ON — 빈 칸을 누르면 "수리중"으로 예약됩니다':'수리 모드 OFF');
+  };
+  syncHeader(); bindGrid(); renderTabs(); renderGrid();
+}
+
+function helpText(){
+  if(isAdmin()&&state.repair) return '수리 모드: 빈 칸을 누르면 "수리중"으로 예약됩니다 (수리 버튼을 다시 누르면 해제)';
+  if(isRoom(curTab())) return '사용자 칸 클릭 = 사용 등록 · 내 칸 다시 클릭 = 해제 · 시작/종료 칸 = 날짜 선택 · 비고 = 직접 입력';
+  return '빈 칸 클릭 = 예약 · 내 예약(파란색) 클릭 = 삭제 · 마우스 드래그 = 여러 시간 예약';
+}
+function syncHeader(){
+  const n=$('#whoName'); if(n&&state.user) n.innerHTML=esc(state.user.name)+(isAdmin()?'<span class="admtag"> · 관리자 모드</span>':'');
+  const b=$('#btnRepair'); if(b){ b.disabled=!isAdmin(); b.classList.toggle('on',isAdmin()&&state.repair); }
+  const h=$('#help'); if(h){ h.textContent=helpText(); h.classList.toggle('rep',isAdmin()&&state.repair); }
+}
+
+function startApp(){ renderShell(); state.subKey=''; subscribeRes(); }
+
+function onTabs(tabs){
+  state.tabs=tabs;
+  if(!tabs.find(t=>t.id===state.activeTab)) state.activeTab=tabs[0]?tabs[0].id:null;
+  if(state.user){ renderTabs(); subscribeRes(); renderGrid(); }
+  if(state.panelOpen&&isAdmin()) renderTabList();
+}
+
+function subscribeRes(){
+  if(!state.user) return;
+  const tab=curTab(), kind=isRoom(tab)?'room':'grid';
+  const key=`${state.activeTab}|${state.today}|${kind}`;
+  if(key===state.subKey) return;
+  state.subKey=key;
+  state.unsubRes&&state.unsubRes(); state.unsubRes=null; state.res=new Map(); state.room=new Map();
+  if(!tab) return;
+  state.unsubRes = kind==='room'
+    ? state.store.watchRoom(tab.id,m=>{ state.room=m; renderGrid(); })
+    : state.store.watchRes(tab.id,state.today,list=>{ state.res=new Map(list.map(r=>[`${r.date}_${r.hour}`,r])); renderGrid(); });
+}
+
+function renderTabs(){
+  const el=$('#tabs'); if(!el) return;
+  el.innerHTML=(isAdmin()?'<button class="add" data-act="add" title="장비 탭 추가">＋</button>':'')+
+    state.tabs.map(t=>`<button data-id="${t.id}" class="${t.id===state.activeTab?'active':''}">${esc(t.name)}</button>`).join('');
+  el.onclick=async e=>{
+    const b=e.target.closest('button'); if(!b) return;
+    if(b.dataset.act==='add'){ const n=(prompt('추가할 장비 이름')||'').trim(); if(n) await state.store.addTab(n,'grid').catch(er=>toast(er.message)); return; }
+    state.activeTab=b.dataset.id; localStorage.setItem('eqres_tab',state.activeTab);
+    renderTabs(); subscribeRes(); renderGrid();
+  };
+}
+
+/* ---------------- 그리드 렌더 ---------------- */
+let drag=null;
+const isEditing=()=>{ const a=document.activeElement, w=$('#gridwrap'); return !!(a&&w&&w.contains(a)&&(a.tagName==='TEXTAREA'||a.tagName==='INPUT')); };
+
+function renderGrid(){
+  const wrap=$('#gridwrap'); if(!wrap||!state.user) return;
+  syncHeader();
+  if(isEditing()){ state.pending=true; return; }        // 입력 중에는 화면 갱신 보류
+  state.pending=false;
+  const tab=curTab();
+  if(!tab){ wrap.innerHTML=`<div class="empty">등록된 장비 탭이 없습니다. 관리자 모드에서 추가하세요.</div>`; return; }
+  const st=wrap.scrollTop, sl=wrap.scrollLeft;
+  wrap.innerHTML = isRoom(tab) ? roomHtml(tab) : gridHtml(tab);
+  wrap.scrollTop=st; wrap.scrollLeft=sl;
+  if(!isRoom(tab)) paintSel();
+}
+
+function gridHtml(tab){
+  const nowH=new Date().getHours();
+  let h=`<table class="grid"><thead><tr><th class="corner">${esc(tab.name)}</th>`;
+  for(const hr of HOURS) h+=`<th class="${hr===nowH?'nowh':''}${hr===18?' split':''}">${hr}~${hr+1}시</th>`;
+  h+='</tr></thead><tbody>';
+  const base=parseYmd(state.today);
+  for(let i=0;i<DAYS;i++){
+    const d=new Date(base.getFullYear(),base.getMonth(),base.getDate()+i), ds=ymd(d), dw=d.getDay();
+    h+=`<tr class="${i===0?'today':''} ${dw===0?'sun':dw===6?'sat':''}"><th class="datec">${label(ds)}</th>`;
+    for(const hr of HOURS){
+      const r=state.res.get(`${ds}_${hr}`);
+      const c=['slot']; if(hr===18)c.push('split'); if(isPastSlot(ds,hr))c.push('past');
+      if(r){
+        c.push('taken');
+        if(r.name===REPAIR){ c.push('repair'); if(!isAdmin()) c.push('locked'); }
+        else if(r.name===state.user.name) c.push('mine');
+        else if(!isAdmin()) c.push('locked');
+      }
+      h+=`<td class="${c.join(' ')}" data-date="${ds}" data-hour="${hr}">${r?esc(r.name):''}</td>`;
+    }
+    h+='</tr>';
+  }
+  return h+'</tbody></table>';
+}
+
+function roomHtml(tab){
+  const cols=tab.cols||[], me=state.user;
+  if(!cols.length) return `<div class="empty">등록된 열이 없습니다.${isAdmin()?' 관리 → 해당 탭의 "열 관리"에서 추가하세요.':' 관리자에게 문의하세요.'}</div>`;
+  const R=c=>state.room.get(c.id)||{};
+  const ownerOrAdmin=r=>!!r.user&&(r.user===me.name||isAdmin());
+  let h=`<table class="grid room"><thead><tr><th class="corner">${esc(tab.name)}</th>${cols.map(c=>`<th>${esc(c.name)}</th>`).join('')}</tr></thead><tbody>`;
+  h+='<tr><th class="datec">사용자</th>';
+  for(const c of cols){
+    const r=R(c), cl=['rc','ruser'];
+    if(r.user){
+      cl.push('taken');
+      if(r.user===REPAIR) cl.push('repair'); else if(r.user===me.name) cl.push('mine');
+      if(r.user!==me.name&&!isAdmin()) cl.push('locked');
+    }
+    h+=`<td class="${cl.join(' ')}" data-col="${esc(c.id)}">${r.user?esc(r.user):''}</td>`;
+  }
+  h+='</tr>';
+  for(const [f,lab] of [['start','시작 시간'],['end','종료 시간']]){
+    h+=`<tr><th class="datec">${lab}</th>`;
+    for(const c of cols){
+      const r=R(c), can=ownerOrAdmin(r);
+      h+=`<td class="rc rdate${can?' editable':''}" data-col="${esc(c.id)}">${shortDate(r[f])}${can?`<input type="date" class="dateinp" data-col="${esc(c.id)}" data-f="${f}" value="${r[f]||''}">`:''}</td>`;
+    }
+    h+='</tr>';
+  }
+  h+='<tr class="rm-note"><th class="datec">비고</th>';
+  for(const c of cols){
+    const r=R(c), can=(r.user===me.name)||isAdmin();
+    h+=`<td class="rc rnote">${can?`<textarea class="note" data-col="${esc(c.id)}">${esc(r.note||'')}</textarea>`:`<div class="ntxt">${esc(r.note||'')}</div>`}</td>`;
+  }
+  return h+'</tr></tbody></table>';
+}
+
+/* ---------------- 입력 처리 (클릭/드래그/날짜/메모) ---------------- */
+function paintSel(){
+  document.querySelectorAll('td.sel').forEach(x=>x.classList.remove('sel'));
+  if(!drag) return;
+  const lo=Math.min(drag.start,drag.end), hi=Math.max(drag.start,drag.end);
+  for(let hr=lo;hr<=hi;hr++){ const td=document.querySelector(`td.slot[data-date="${drag.date}"][data-hour="${hr}"]`); td&&td.classList.add('sel'); }
+}
+let gridBound=false;
+const noteTimers={};
+function bindGrid(){
+  const wrap=$('#gridwrap');
+  wrap.addEventListener('pointerdown',e=>{
+    const td=e.target.closest('td.slot'); if(!td||e.button>0) return;
+    if(td.classList.contains('locked')) return;           // 타인 예약 칸은 클릭 불가
+    drag={date:td.dataset.date,start:+td.dataset.hour,end:+td.dataset.hour}; paintSel();
+  });
+  wrap.addEventListener('pointermove',e=>{
+    if(!drag) return;
+    const el=document.elementFromPoint(e.clientX,e.clientY), td=el&&el.closest&&el.closest('td.slot');
+    if(td&&td.dataset.date===drag.date&&+td.dataset.hour!==drag.end){ drag.end=+td.dataset.hour; paintSel(); }
+  });
+  // 챔버형(신뢰성방)
+  wrap.addEventListener('click',e=>{
+    const inp=e.target.closest('input.dateinp');
+    if(inp){ try{ inp.showPicker&&inp.showPicker(); }catch{} return; }
+    const u=e.target.closest('td.ruser');
+    if(u){ if(!u.classList.contains('locked')) roomUserClick(u.dataset.col); return; }
+    const d=e.target.closest('td.rdate');
+    if(d&&!d.classList.contains('editable')){
+      const r=state.room.get(d.dataset.col);
+      if(!r||!r.user) toast('먼저 사용자 칸을 눌러 예약하세요');
+    }
+  });
+  wrap.addEventListener('change',async e=>{
+    const t=e.target, tabId=state.activeTab;
+    if(t.matches('input.dateinp')){
+      t.blur();
+      const col=t.dataset.col, f=t.dataset.f, val=t.value, r=state.room.get(col)||{};
+      const other=f==='start'?r.end:r.start;
+      if(val&&other&&((f==='start'&&val>other)||(f==='end'&&val<other))){ toast('종료일은 시작일보다 빠를 수 없습니다'); state.pending=false; renderGrid(); return; }
+      await state.store.roomSet(tabId,col,{[f]:val}).catch(er=>toast('저장 실패: '+er.message));
+    } else if(t.matches('textarea.note')){
+      clearTimeout(noteTimers[t.dataset.col]);
+      await state.store.roomSet(tabId,t.dataset.col,{note:t.value}).catch(er=>toast('저장 실패: '+er.message));
+    }
+  });
+  wrap.addEventListener('input',e=>{
+    const t=e.target; if(!t.matches('textarea.note')) return;
+    const col=t.dataset.col, tabId=state.activeTab;
+    clearTimeout(noteTimers[col]);
+    noteTimers[col]=setTimeout(()=>state.store.roomSet(tabId,col,{note:t.value}).catch(()=>{}),700);
+  });
+  wrap.addEventListener('focusout',()=>setTimeout(()=>{ if(state.pending&&!isEditing()) renderGrid(); },120));
+  if(gridBound) return; gridBound=true;
+  const finish=ok=>{
+    if(!drag) return; const d=drag; drag=null; paintSel();
+    if(ok) commit(d.date,Math.min(d.start,d.end),Math.max(d.start,d.end));
+  };
+  window.addEventListener('pointerup',()=>finish(true));
+  window.addEventListener('pointercancel',()=>finish(false));
+}
+
+const reserveName = () => (isAdmin()&&state.repair) ? REPAIR : state.user.name;
+
+async function commit(date,lo,hi){
+  if(!state.user||!(await verify())) return;
+  const me=state.user, tabId=state.activeTab;
+  if(lo===hi){
+    const r=state.res.get(`${date}_${lo}`);
+    if(r){
+      if(r.name===me.name||(isAdmin()&&r.name===REPAIR)){      // 내 예약 / 수리중: 확인창 없이 즉시 삭제
+        await state.store.cancel(tabId,date,lo).catch(e=>toast('삭제 실패: '+e.message));
+      } else if(isAdmin()){                                   // 관리자가 타인 예약 삭제: 확인
+        if(confirm(`${label(date)} ${lo}~${lo+1}시\n${r.name} 님의 예약을 삭제할까요?`))
+          await state.store.cancel(tabId,date,lo).catch(e=>toast('삭제 실패: '+e.message));
+      }
+      return;                                                 // 일반 사용자의 타인 예약 칸은 무반응
+    }
+    if(isPastSlot(date,lo)&&!isAdmin()){ toast('지난 시간은 예약할 수 없습니다'); return; }
+    try{ await state.store.reserve(tabId,date,lo,reserveName()); }
+    catch(e){ toast(e.message==='taken'?'방금 다른 사람이 예약했습니다':'저장 실패: '+e.message); }
+    return;
+  }
+  let ok=0,skip=0; const name=reserveName();
+  for(let hr=lo;hr<=hi;hr++){
+    if(state.res.has(`${date}_${hr}`)||(isPastSlot(date,hr)&&!isAdmin())){ skip++; continue; }
+    try{ await state.store.reserve(tabId,date,hr,name); ok++; }catch{ skip++; }
+  }
+  toast(`${ok}칸 예약${skip?` (${skip}칸은 제외됨)`:''}`);
+}
+
+async function roomUserClick(colId){
+  if(!state.user||!(await verify())) return;
+  const me=state.user, tabId=state.activeTab, r=state.room.get(colId);
+  if(r&&r.user){
+    if(r.user===me.name||(isAdmin()&&r.user===REPAIR)){
+      await state.store.roomRelease(tabId,colId).catch(e=>toast('해제 실패: '+e.message));
+    } else if(isAdmin()){
+      if(confirm(`${r.user} 님의 사용 등록을 해제할까요?\n(시작/종료일, 비고도 함께 삭제됩니다)`))
+        await state.store.roomRelease(tabId,colId).catch(e=>toast('해제 실패: '+e.message));
+    }
+    return;
+  }
+  try{ await state.store.roomReserve(tabId,colId,reserveName()); }
+  catch(e){ toast(e.message==='taken'?'방금 다른 사람이 등록했습니다':'저장 실패: '+e.message); }
+}
+
+/* ---------------- 관리 패널 ---------------- */
+function openPanel(){
+  state.panelOpen=true;
+  const m=$('#modal'); m.classList.add('open');
+  m.onclick=e=>{ if(e.target===m) closePanel(); };
+  renderPanel();
+}
+function closePanel(){
+  state.panelOpen=false; $('#modal').classList.remove('open');
+  state.unsubUsers&&state.unsubUsers(); state.unsubUsers=null;
+}
+function setAdmin(on){
+  state.adminMode=on; on?sessionStorage.setItem('eqres_admin','1'):sessionStorage.removeItem('eqres_admin');
+  if(!on) state.repair=false;
+  if(state.user){ syncHeader(); renderTabs(); renderGrid(); }
+  renderPanel();
+}
+
+function renderPanel(){
+  const m=$('#modal'), me=state.user;
+  state.unsubUsers&&state.unsubUsers(); state.unsubUsers=null;
+  m.innerHTML=`<div class="mbox">
+    <div class="mhead"><b style="font-size:16px">관리</b><button id="mclose">✕</button></div>
+    ${me?`<h3>로그인 계정</h3><div class="item"><span class="nm">${esc(me.name)}</span></div>
+      <h3>PIN 변경</h3>
+      <div class="row"><input class="pin" id="pcCur" type="password" inputmode="numeric" maxlength="4" placeholder="현재 PIN">
+        <input class="pin" id="pcNew" type="password" inputmode="numeric" maxlength="4" placeholder="새 PIN (숫자 4자리)"><button id="pcBtn">변경</button></div>`:''}
+    <h3>관리자 모드</h3>
+    ${isAdmin()?`<div class="item"><span class="nm">관리자 모드 사용 중</span><button id="admOff">종료</button></div>
+      <h3>장비 탭</h3><div id="tabList"></div>
+      <div class="row"><input id="newTab" placeholder="새 장비 이름">
+        <select id="newTabType"><option value="grid">일반(시간표)</option><option value="room">챔버형(시작·종료일)</option></select>
+        <button id="addTabBtn">탭 추가</button></div>
+      <h3>계정</h3><div id="userList"></div>
+      <div class="row"><input id="nuName" placeholder="이름"><input class="pin" id="nuPin" inputmode="numeric" maxlength="4" placeholder="PIN 4자리" style="max-width:130px"><button id="addUserBtn">계정 추가</button></div>`
+    :`<div class="row"><input id="admCode" type="password" inputmode="numeric" placeholder="관리자 코드"><button id="admOn">진입</button></div>`}
+  </div>`;
+  $('#mclose').onclick=closePanel;
+
+  if(me){
+    $('#pcBtn').onclick=async()=>{
+      const cur=$('#pcCur').value, nw=$('#pcNew').value;
+      if(!PIN_RE.test(cur)||!PIN_RE.test(nw)) return toast('PIN은 숫자 4자리로 입력하세요');
+      if(await hashPin(me.name,cur)!==me.pinHash) return toast('현재 PIN이 올바르지 않습니다');
+      const nu={...me,pinHash:await hashPin(me.name,nw)};
+      await state.store.setUser(nu); state.user=nu; saveSession(nu);
+      $('#pcCur').value=$('#pcNew').value=''; toast('PIN을 변경했습니다');
+    };
+  }
+  if(!isAdmin()){
+    const enter=async()=>{
+      if($('#admCode').value!==ADMIN_CODE) return toast('관리자 코드가 올바르지 않습니다');
+      await state.store.initIfNeeded().catch(()=>{}); setAdmin(true);
+    };
+    $('#admOn').onclick=enter; $('#admCode').onkeydown=e=>{ if(e.key==='Enter') enter(); };
+    return;
+  }
+  $('#admOff').onclick=()=>setAdmin(false);
+  $('#addTabBtn').onclick=async()=>{
+    const n=$('#newTab').value.trim(); if(!n) return;
+    await state.store.addTab(n,$('#newTabType').value).catch(e=>toast(e.message)); $('#newTab').value='';
+  };
+  $('#tabList').onclick=async e=>{
+    const b=e.target.closest('button'); if(!b) return; const id=b.dataset.id, t=state.tabs.find(x=>x.id===id); if(!t) return;
+    const act=b.dataset.act;
+    if(act==='ren'){ const n=(prompt('새 이름',t.name)||'').trim(); if(n&&n!==t.name) await state.store.renameTab(id,n).catch(er=>toast(er.message)); }
+    if(act==='del'&&confirm(`"${t.name}" 탭과 이 장비의 모든 예약이 삭제됩니다. 계속할까요?`)) await state.store.deleteTab(id).catch(er=>toast(er.message));
+    if(act==='cols'){ state.colEdit=state.colEdit===id?null:id; renderTabList(); }
+    const cols=t.cols||[];
+    if(act==='cadd'){
+      const inp=$('#newCol'), n=(inp&&inp.value||'').trim(); if(!n) return;
+      await state.store.setCols(id,[...cols,{id:'c'+Date.now(),name:n}]).catch(er=>toast(er.message));
+    }
+    if(act==='crn'){
+      const c=cols.find(x=>x.id===b.dataset.cid); if(!c) return;
+      const n=(prompt('새 이름',c.name)||'').trim(); if(n&&n!==c.name) await state.store.setCols(id,cols.map(x=>x.id===c.id?{...x,name:n}:x)).catch(er=>toast(er.message));
+    }
+    if(act==='cdel'){
+      const c=cols.find(x=>x.id===b.dataset.cid); if(!c) return;
+      if(confirm(`"${c.name}" 열을 삭제할까요? (등록 내용도 함께 삭제됩니다)`)){
+        await state.store.roomRelease(id,c.id).catch(()=>{});
+        await state.store.setCols(id,cols.filter(x=>x.id!==c.id)).catch(er=>toast(er.message));
+      }
+    }
+  };
+  $('#addUserBtn').onclick=async()=>{
+    const name=$('#nuName').value.trim(), pin=$('#nuPin').value;
+    if(!name||!pin) return toast('이름과 PIN을 입력하세요');
+    if(name.includes('/')||name.length>20) return toast('이름에 / 불가, 20자 이내');
+    if(name===REPAIR) return toast(`"${REPAIR}"은 사용할 수 없는 이름입니다`);
+    if(!PIN_RE.test(pin)) return toast('PIN은 숫자 4자리입니다');
+    if(await state.store.getUser(name)) return toast('이미 있는 이름입니다');
+    await state.store.setUser({name,pinHash:await hashPin(name,pin)});
+    $('#nuName').value=$('#nuPin').value=''; toast('계정을 추가했습니다');
+  };
+  $('#userList').onclick=async e=>{
+    const b=e.target.closest('button'); if(!b) return; const name=b.dataset.name, u=state.users.find(x=>x.name===name); if(!u) return;
+    if(b.dataset.act==='pin'){
+      const pin=(prompt(`${name} 의 새 PIN (숫자 4자리)`)||'').trim(); if(!pin) return;
+      if(!PIN_RE.test(pin)) return toast('PIN은 숫자 4자리입니다');
+      const nu={...u,pinHash:await hashPin(name,pin)}; await state.store.setUser(nu);
+      if(state.user&&name===state.user.name){ state.user=nu; saveSession(nu); }
+      toast('PIN을 변경했습니다');
+    }
+    if(b.dataset.act==='del'){
+      if(state.user&&name===state.user.name) return toast('로그인 중인 본인 계정은 삭제할 수 없습니다');
+      if(confirm(`${name} 계정을 삭제할까요? (해당 사용자는 로그아웃됩니다)`)) await state.store.deleteUser(name);
+    }
+  };
+  state.unsubUsers=state.store.watchUsers(list=>{ state.users=list.sort((a,b)=>a.name.localeCompare(b.name,'ko')); renderUserList(); });
+  renderTabList();
+}
+function renderTabList(){
+  const el=$('#tabList'); if(!el) return;
+  el.innerHTML=state.tabs.map(t=>{
+    const room=isRoom(t);
+    let h=`<div class="item"><span class="nm">${esc(t.name)}</span>${room?'<span class="tag">챔버형</span><button data-act="cols" data-id="'+t.id+'">열 관리</button>':''}
+      <button data-act="ren" data-id="${t.id}">이름 변경</button><button class="del" data-act="del" data-id="${t.id}">삭제</button></div>`;
+    if(room&&state.colEdit===t.id){
+      h+=`<div class="coled">${(t.cols||[]).map(c=>`<div class="item"><span class="nm">${esc(c.name)}</span>
+        <button data-act="crn" data-id="${t.id}" data-cid="${esc(c.id)}">이름 변경</button><button class="del" data-act="cdel" data-id="${t.id}" data-cid="${esc(c.id)}">삭제</button></div>`).join('')}
+        <div class="row"><input id="newCol" placeholder="새 열 이름 (예: 항온항습2호)"><button data-act="cadd" data-id="${t.id}">열 추가</button></div></div>`;
+    }
+    return h;
+  }).join('')||'<div class="empty" style="padding:12px">탭 없음</div>';
+}
+function renderUserList(){
+  const el=$('#userList'); if(!el) return;
+  el.innerHTML=state.users.map(u=>`<div class="item"><span class="nm">${esc(u.name)}</span>
+    ${state.user&&u.name===state.user.name?'<span class="tag">나</span>':''}
+    <button data-act="pin" data-name="${esc(u.name)}">PIN 변경</button>
+    <button class="del" data-act="del" data-name="${esc(u.name)}">삭제</button></div>`).join('')||'<div class="empty" style="padding:12px">등록된 계정 없음</div>';
+}
+
+/* ---------------- 시간 흐름: 자정에 날짜 자동 이동 ---------------- */
+function tick(){
+  if(!state.user) return;
+  const t=ymd(new Date()), h=new Date().getHours();
+  if(t!==state.today){ state.today=t; state.hour=h; state.subKey=''; subscribeRes(); renderGrid(); }   // 맨 윗줄 제거, 아래 줄이 올라옴
+  else if(h!==state.hour){ state.hour=h; renderGrid(); }
+}
+setInterval(tick,15000);
+window.addEventListener('focus',()=>{ if(state.user) verify(); });
+document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&state.user){ state.hour=-1; tick(); } });
+
+/* ---------------- 시작 ---------------- */
+(async function boot(){
+  try{ state.store = USE_FIREBASE ? await makeFirebaseStore() : makeLocalStore(); }
+  catch(e){ $('#app').innerHTML=`<div class="empty">Firebase 연결 실패: ${esc(e.message)}</div>`; return; }
+  state.store.watchTabs(onTabs);
+  let sess=null; try{ sess=JSON.parse(localStorage.getItem(SESS)||'null'); }catch{}
+  if(sess){
+    try{
+      const u=await state.store.getUser(sess.name);
+      if(u&&u.pinHash===sess.hash){ state.user=u; startApp(); return; }
+    }catch{}
+    localStorage.removeItem(SESS);
+  }
+  showLogin();
+})();
+</script>
+</body>
+</html>

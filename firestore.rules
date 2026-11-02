@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{u}  { allow read, write: if true; }
+    match /meta/{m}   { allow read, write: if true; }
+    match /equipments/{e} {
+      allow read, write: if true;
+      match /reservations/{r} {
+        allow read, create, delete: if true;
+        allow update: if false;   // 남의 예약 덮어쓰기 방지
+      }
+      match /rooms/{r} { allow read, write: if true; }   // 신뢰성방(챔버형)
+    }
+  }
+}
