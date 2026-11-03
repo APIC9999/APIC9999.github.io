@@ -111,6 +111,9 @@ table.grid thead th.nx{background:#1c2250}
 .mbox ol{padding-left:20px;line-height:1.75;font-size:14px;margin:8px 0}
 .mbox .note{font-size:12px;color:#8a90a2;margin:6px 0 0}
 .xl{font-size:12px;color:#666;display:flex;align-items:center;gap:4px}
+.mv{display:flex;gap:2px}
+.item .mv button{padding:2px 7px;font-size:11px}
+.item button:disabled{opacity:.3;cursor:not-allowed}
 .xl select{font-size:12px;padding:3px;border:1px solid #c9cedb;border-radius:6px}
 .help{display:flex;justify-content:space-between;align-items:center;gap:8px}
 #quota{font-weight:700;color:#2a3166;white-space:nowrap}
@@ -240,6 +243,7 @@ function makeLocalStore(){
     async addTab(name,type){ db.tabs.push({id:'t'+Date.now(),name,order:Date.now(),type:type||'grid',cols:[]}); save(); },
     async renameTab(id,name){ const t=db.tabs.find(x=>x.id===id); if(t){t.name=name;save();} },
     async setCols(id,cols){ const t=db.tabs.find(x=>x.id===id); if(t){t.cols=cols;save();} },
+    async reorderTabs(list){ list.forEach(u=>{ const t=db.tabs.find(x=>x.id===u.id); if(t) t.order=u.order; }); save(); },
     async setTabExtra(id,n){ const t=db.tabs.find(x=>x.id===id); if(t){t.extra=n;save();} },
     async setTabLimit(id,n){ const t=db.tabs.find(x=>x.id===id); if(t){t.limit=n;save();} },
     async setTabNotice(id,text){ const t=db.tabs.find(x=>x.id===id); if(t){t.notice=text;save();} },
@@ -297,6 +301,7 @@ async function makeFirebaseStore(){
     async addTab(name,type){ await addDoc(collection(db,'equipments'),{name,order:Date.now(),type:type||'grid',cols:[]}); },
     async renameTab(id,name){ await updateDoc(doc(db,'equipments',id),{name}); },
     async setCols(id,cols){ await updateDoc(doc(db,'equipments',id),{cols}); },
+    async reorderTabs(list){ const b=writeBatch(db); list.forEach(u=>b.update(doc(db,'equipments',u.id),{order:u.order})); await b.commit(); },
     async setTabExtra(id,n){ await updateDoc(doc(db,'equipments',id),{extra:n}); },
     async setTabLimit(id,n){ await updateDoc(doc(db,'equipments',id),{limit:n}); },
     async setTabNotice(id,text){ await updateDoc(doc(db,'equipments',id),{notice:text}); },
@@ -809,6 +814,14 @@ function renderPanel(){
   $('#tabList').onclick=async e=>{
     const b=e.target.closest('button'); if(!b) return; const id=b.dataset.id, t=state.tabs.find(x=>x.id===id); if(!t) return;
     const act=b.dataset.act;
+    if(act==='up'||act==='down'){                         // 탭 위치 이동
+      const arr=[...state.tabs], i=arr.findIndex(x=>x.id===id), j=act==='up'?i-1:i+1;
+      if(i<0||j<0||j>=arr.length) return;
+      [arr[i],arr[j]]=[arr[j],arr[i]];
+      const ups=arr.map((x,k)=>({id:x.id,order:k})).filter(u=>state.tabs.find(x=>x.id===u.id).order!==u.order);
+      await state.store.reorderTabs(ups).catch(er=>toast('이동 실패: '+er.message));
+      return;
+    }
     if(act==='ren'){ const n=(prompt('새 이름',t.name)||'').trim(); if(n&&n!==t.name) await state.store.renameTab(id,n).catch(er=>toast(er.message)); }
     if(act==='del'&&confirm(`"${t.name}" 탭과 이 장비의 모든 예약이 삭제됩니다. 계속할까요?`)) await state.store.deleteTab(id).catch(er=>toast(er.message));
     if(act==='cols'){ state.colEdit=state.colEdit===id?null:id; renderTabList(); }
@@ -874,9 +887,9 @@ function renderPanel(){
 }
 function renderTabList(){
   const el=$('#tabList'); if(!el) return;
-  el.innerHTML=state.tabs.map(t=>{
+  el.innerHTML=state.tabs.map((t,i)=>{
     const room=isRoom(t);
-    let h=`<div class="item"><span class="nm">${esc(t.name)}</span>${room?'<span class="tag">챔버형</span><button data-act="cols" data-id="'+t.id+'">열 관리</button>':`<label class="xl">새벽 <select data-act="extra" data-id="${t.id}">${extraOpts(+t.extra||0)}</select></label><label class="xl">한도 <input type="number" min="0" max="999" data-act="limit" data-id="${t.id}" value="${limitOf(t)}" style="width:52px;padding:3px;border:1px solid #c9cedb;border-radius:6px;font-size:12px">칸</label>`}
+    let h=`<div class="item"><span class="mv"><button data-act="up" data-id="${t.id}" title="위로"${i===0?' disabled':''}>▲</button><button data-act="down" data-id="${t.id}" title="아래로"${i===state.tabs.length-1?' disabled':''}>▼</button></span><span class="nm">${esc(t.name)}</span>${room?'<span class="tag">챔버형</span><button data-act="cols" data-id="'+t.id+'">열 관리</button>':`<label class="xl">새벽 <select data-act="extra" data-id="${t.id}">${extraOpts(+t.extra||0)}</select></label><label class="xl">한도 <input type="number" min="0" max="999" data-act="limit" data-id="${t.id}" value="${limitOf(t)}" style="width:52px;padding:3px;border:1px solid #c9cedb;border-radius:6px;font-size:12px">칸</label>`}
       <button data-act="ren" data-id="${t.id}">이름 변경</button><button class="del" data-act="del" data-id="${t.id}">삭제</button></div>`;
     if(room&&state.colEdit===t.id){
       h+=`<div class="coled">${(t.cols||[]).map(c=>`<div class="item"><span class="nm">${esc(c.name)}</span>
@@ -988,10 +1001,16 @@ async function onInstall(kind){
   }
   const plat=/Mac/i.test(navigator.platform)?'mac':/Win/i.test(navigator.platform)?'win':'linux';
   const ext={win:'url',mac:'webloc',linux:'desktop'}[plat];
-  openInfo('바로가기 만들기',
-    `<div class="row" style="margin-top:4px"><button id="scFile">바로가기 파일 받기 (.html)</button></div>
-     <ol><li>내려받은 파일을 <b>바탕화면</b>으로 옮깁니다.</li><li>더블클릭하면 기본 브라우저에서 이 페이지가 열립니다.</li></ol><p class="note">아이콘이 있는 바로가기가 필요하면 Chrome·Edge 메뉴(⋮) → 저장 및 공유 → <b>바로가기 만들기</b>를 이용하세요. ("창으로 열기"는 끄면 일반 브라우저로 열립니다)</p>`);
+  const close=openInfo('바로가기 만들기',
+    `<div class="row" style="margin-top:4px"><button id="scFile">바로가기 파일 받기 (.html)</button><button id="scApp">앱 설치</button></div>
+     <ol><li><b>바로가기 파일 받기</b>: 내려받은 파일을 <b>바탕화면</b>으로 옮기면, 더블클릭할 때 기본 브라우저에서 이 페이지가 열립니다.</li><li><b>앱 설치</b>: 앱 아이콘이 바탕화면·시작 메뉴에 생기고 별도 창으로 열립니다. (Chrome·Edge)</li></ol><p class="note">아이콘이 있는 바로가기가 필요하면 Chrome·Edge 메뉴(⋮) → 저장 및 공유 → <b>바로가기 만들기</b>를 이용하세요. ("창으로 열기"는 끄면 일반 브라우저로 열립니다)</p>`);
   $('#scFile').onclick=()=>downloadShortcut();
+  $('#scApp').onclick=async()=>{
+    if(!deferredPrompt){ toast('주소창 오른쪽의 설치 아이콘 또는 ⋮ 메뉴 → 저장 및 공유 → 앱 설치를 이용해 주세요'); return; }
+    const p=deferredPrompt; deferredPrompt=null; p.prompt();
+    const r=await p.userChoice.catch(()=>null);
+    if(r&&r.outcome==='accepted'){ toast('앱을 설치했습니다'); close(); }
+  };
 }
 function downloadShortcut(){
   // 어느 PC에서나 더블클릭하면 기본 브라우저가 열려 이 주소로 이동하는 바로가기(.html) 파일
