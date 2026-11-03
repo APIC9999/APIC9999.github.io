@@ -48,7 +48,9 @@ td.slot.taken,td.ruser.taken{background:#e5e7eb;color:#000;font-weight:400}
 td.slot.mine,td.ruser.mine{background:#dbeafe!important;color:#0b4fc4;font-weight:700}
 td.slot.repair,td.ruser.repair{background:#fde3b8!important;color:#6a3500;font-weight:600}
 td.slot.locked,td.ruser.locked{cursor:default}
-td.slot.past:not(.taken){background:repeating-linear-gradient(135deg,#f4f4f6,#f4f4f6 6px,#eeeef1 6px,#eeeef1 12px);cursor:not-allowed}
+td.slot.past{position:relative}
+td.slot.past:not(.taken){background-color:#dfe1e8;cursor:not-allowed}
+td.slot.past::after{content:'';position:absolute;inset:0;pointer-events:none;background:repeating-linear-gradient(135deg,rgba(40,46,75,.34) 0 4px,rgba(40,46,75,.12) 4px 8px)}   /* 지난 시간: 이름이 있어도 비치는 줄무늬로 표시 */
 td.slot.sel,td.ruser.sel{outline:2px solid #2a6df4;outline-offset:-2px;background:#cfe2ff!important}
 /* 챔버형(신뢰성방) */
 table.grid.room td{position:relative}
