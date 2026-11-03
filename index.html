@@ -49,7 +49,7 @@ td.slot.mine,td.ruser.mine{background:#dbeafe!important;color:#0b4fc4;font-weigh
 td.slot.repair,td.ruser.repair{background:#fde3b8!important;color:#6a3500;font-weight:600}
 td.slot.locked,td.ruser.locked{cursor:default}
 td.slot.past:not(.taken){background:repeating-linear-gradient(135deg,#f4f4f6,#f4f4f6 6px,#eeeef1 6px,#eeeef1 12px);cursor:not-allowed}
-td.slot.sel{outline:2px solid #2a6df4;outline-offset:-2px;background:#cfe2ff!important}
+td.slot.sel,td.ruser.sel{outline:2px solid #2a6df4;outline-offset:-2px;background:#cfe2ff!important}
 /* 챔버형(신뢰성방) */
 table.grid.room td{position:relative}
 td.rdate.editable{cursor:pointer}
@@ -504,7 +504,7 @@ function renderTabs(){
 }
 
 /* ---------------- 그리드 렌더 ---------------- */
-let drag=null, tap=null;
+let drag=null, tap=null, lastTouchTap=0;
 const clearSel=()=>document.querySelectorAll('td.sel').forEach(x=>x.classList.remove('sel'));
 const isEditing=()=>{ const a=document.activeElement, w=$('#gridwrap'); return !!(a&&w&&w.contains(a)&&(a.tagName==='TEXTAREA'||a.tagName==='INPUT')); };
 
@@ -592,12 +592,25 @@ const noteTimers={};
 function bindGrid(){
   const wrap=$('#gridwrap');
   wrap.addEventListener('pointerdown',e=>{
-    const td=e.target.closest('td.slot'); if(!td||e.button>0) return;
-    if(td.classList.contains('locked')) return;           // 타인 예약 칸은 클릭 불가
-    if(e.pointerType==='mouse'){ drag={date:td.dataset.date,start:+td.dataset.hour,end:+td.dataset.hour}; paintSel(); }
-    else{                                                 // 터치: 한 칸 탭만 허용(스크롤 중 탭/손가락 이동은 무시)
-      tap={date:td.dataset.date,hour:td.dataset.hour,x:e.clientX,y:e.clientY,t:Date.now(),st:wrap.scrollTop,sl:wrap.scrollLeft};
-      td.classList.add('sel');
+    if(e.button>0) return;
+    // e.target 대신 손가락 좌표로 칸을 판정 (모바일 브라우저가 터치 대상을 이웃 칸으로 보정하는 문제 방지)
+    const hit=document.elementFromPoint(e.clientX,e.clientY);
+    const td=hit&&hit.closest&&hit.closest('td.slot');
+    if(td){
+      if(td.classList.contains('locked')) return;           // 타인 예약 칸은 클릭 불가
+      if(e.pointerType==='mouse'){ drag={date:td.dataset.date,start:+td.dataset.hour,end:+td.dataset.hour}; paintSel(); }
+      else{                                                 // 터치: 한 칸 탭만 허용(스크롤 중 탭/손가락 이동은 무시)
+        tap={kind:'slot',date:td.dataset.date,hour:td.dataset.hour,x:e.clientX,y:e.clientY,t:Date.now(),st:wrap.scrollTop,sl:wrap.scrollLeft};
+        td.classList.add('sel');
+      }
+      return;
+    }
+    if(e.pointerType!=='mouse'){                            // 신뢰성방 사용자 칸 (터치)
+      const ru=hit&&hit.closest&&hit.closest('td.ruser');
+      if(ru&&!ru.classList.contains('locked')){
+        tap={kind:'room',col:ru.dataset.col,x:e.clientX,y:e.clientY,t:Date.now(),st:wrap.scrollTop,sl:wrap.scrollLeft};
+        ru.classList.add('sel');
+      }
     }
   });
   wrap.addEventListener('pointermove',e=>{
@@ -611,7 +624,7 @@ function bindGrid(){
     const inp=e.target.closest('input.dateinp');
     if(inp){ try{ inp.showPicker&&inp.showPicker(); }catch{} return; }
     const u=e.target.closest('td.ruser');
-    if(u){ if(!u.classList.contains('locked')) roomUserClick(u.dataset.col); return; }
+    if(u){ if(Date.now()-lastTouchTap>700&&!u.classList.contains('locked')) roomUserClick(u.dataset.col); return; }   // 터치는 pointer 방식으로 이미 처리됨
     const d=e.target.closest('td.rdate');
     if(d&&!d.classList.contains('editable')){
       const r=state.room.get(d.dataset.col);
@@ -646,9 +659,16 @@ function bindGrid(){
   window.addEventListener('pointerup',e=>{
     if(tap){
       const t=tap; tap=null; clearSel();
-      const w=$('#gridwrap'), el=document.elementFromPoint(e.clientX,e.clientY), c=el&&el.closest&&el.closest('td.slot');
-      const same=!!c&&c.dataset.date===t.date&&c.dataset.hour===t.hour;
+      const w=$('#gridwrap'), el=document.elementFromPoint(e.clientX,e.clientY);
       const still=!!w&&Math.hypot(e.clientX-t.x,e.clientY-t.y)<=10&&Math.abs(w.scrollTop-t.st)<=2&&Math.abs(w.scrollLeft-t.sl)<=2&&Date.now()-t.t<=800;
+      if(t.kind==='room'){
+        lastTouchTap=Date.now();
+        const c=el&&el.closest&&el.closest('td.ruser');
+        if(still&&c&&c.dataset.col===t.col) roomUserClick(t.col);
+        return;
+      }
+      const c=el&&el.closest&&el.closest('td.slot');
+      const same=!!c&&c.dataset.date===t.date&&c.dataset.hour===t.hour;
       if(same&&still) commit(t.date,+t.hour,+t.hour);
       return;
     }
@@ -660,7 +680,8 @@ function bindGrid(){
 const reserveName = () => (isAdmin()&&state.repair) ? REPAIR : state.user.name;
 
 async function commit(date,lo,hi){
-  if(!state.user||!(await verify())) return;
+  if(!state.user) return;
+  verify();                       // 계정 확인은 백그라운드로 (탭 반응 지연 방지)
   const me=state.user, tabId=state.activeTab;
   if(lo===hi){
     const r=state.res.get(`${date}_${lo}`);
@@ -689,7 +710,8 @@ async function commit(date,lo,hi){
 }
 
 async function roomUserClick(colId){
-  if(!state.user||!(await verify())) return;
+  if(!state.user) return;
+  verify();
   const me=state.user, tabId=state.activeTab, r=state.room.get(colId);
   if(r&&r.user){
     if(r.user===me.name||(isAdmin()&&r.user===REPAIR)){
@@ -931,6 +953,26 @@ async function onInstall(kind){
       const r=await p.userChoice.catch(()=>null); if(r&&r.outcome==='accepted') toast('홈 화면에 추가했습니다');
       return;
     }
+    const ua=navigator.userAgent, app=/KAKAOTALK/i.test(ua)?'카카오톡':/NAVER\(inapp/i.test(ua)?'네이버 앱':/DaumApps/i.test(ua)?'다음 앱':/Instagram/i.test(ua)?'인스타그램':/FBAN|FBAV/i.test(ua)?'페이스북':/Line\//i.test(ua)?'라인':'';
+    if(app){
+      const href=location.href.split('#')[0], u=new URL(href), android=/Android/i.test(ua), kakao=app==='카카오톡';
+      const ext = kakao ? 'kakaotalk://web/openExternal?url='+encodeURIComponent(href)
+        : android ? 'intent://'+u.host+u.pathname+u.search+'#Intent;scheme='+u.protocol.replace(':','')+';package=com.android.chrome;S.browser_fallback_url='+encodeURIComponent(href)+';end'
+        : '';
+      openInfo('외부 브라우저로 열어 주세요',`<p style="font-size:14px;line-height:1.6;margin:6px 0">지금은 <b>${app}</b> 안에서 열려 있어 홈 화면에 추가할 수 없습니다.</p>
+        <div class="row" style="margin-top:4px">${ext?`<button id="exOpen" data-url="${esc(ext)}">기본 브라우저로 열기</button>`:''}<button id="exCopy" style="background:#fff;color:#2a3166">주소 복사</button></div>
+        <p class="note" style="margin-top:10px">버튼이 동작하지 않으면 아래 순서로 열어 주세요.</p>
+        <ol><li>화면의 <b>메뉴(⋮ 또는 ≡)</b>를 누릅니다</li><li><b>'다른 브라우저로 열기'</b>(또는 '기본 브라우저로 열기', 'Safari로 열기')를 누릅니다</li><li>열린 ${isIOS()?'Safari':'Chrome'}에서 <b>홈화면</b> 버튼을 다시 누릅니다</li></ol>
+        ${ext?'':'<p class="note">아이폰의 이 앱에서는 자동으로 열 수 없습니다. 메뉴를 이용하거나, 주소를 복사해 Safari 주소창에 붙여넣어 주세요.</p>'}`);
+      if(ext) $('#exOpen').onclick=()=>{ location.href=$('#exOpen').dataset.url; };
+      $('#exCopy').onclick=async()=>{
+        let ok=false;
+        try{ await navigator.clipboard.writeText(href); ok=true; }
+        catch{ const ta=document.createElement('textarea'); ta.value=href; document.body.appendChild(ta); ta.select(); try{ ok=document.execCommand('copy'); }catch{} ta.remove(); }
+        toast(ok?'주소를 복사했습니다. 브라우저 주소창에 붙여넣으세요':'복사하지 못했습니다');
+      };
+      return;
+    }
     openInfo('홈 화면에 추가', isIOS()
       ? '<ol><li>반드시 <b>Safari</b>로 이 페이지를 엽니다 (카카오톡·네이버 앱 안에서는 안 됩니다)</li><li>화면 아래(또는 위)의 <b>공유 버튼</b>(네모에 화살표)을 누릅니다</li><li><b>\'홈 화면에 추가\'</b>를 누르고 오른쪽 위 <b>추가</b>를 누릅니다</li></ol><p class="note">홈 화면 아이콘으로 처음 열면 로그인을 한 번 다시 해야 할 수 있습니다.</p>'
       : '<ol><li><b>Chrome</b>으로 이 페이지를 엽니다 (카카오톡·네이버 앱 안에서는 안 됩니다)</li><li>오른쪽 위 <b>⋮ 메뉴</b>를 누릅니다</li><li><b>\'홈 화면에 추가\'</b> 또는 <b>\'앱 설치\'</b>를 누르고 <b>추가</b>를 누릅니다</li></ol><p class="note">삼성 인터넷: 아래 ≡ 메뉴 → 현재 페이지 추가 → 홈 화면</p>');
@@ -939,11 +981,9 @@ async function onInstall(kind){
   const plat=/Mac/i.test(navigator.platform)?'mac':/Win/i.test(navigator.platform)?'win':'linux';
   const ext={win:'url',mac:'webloc',linux:'desktop'}[plat];
   openInfo('바로가기 만들기',
-    `<div class="row" style="margin-top:4px"><button id="scFile">바로가기 파일 받기 (.${ext})</button>${deferredPrompt?'<button id="scApp">앱으로 설치</button>':''}</div>
-     <ol><li><b>바로가기 파일 받기</b>: 내려받은 파일을 바탕화면으로 옮기면 더블클릭으로 열립니다.</li>
-     ${deferredPrompt?'':'<li>Chrome·Edge: 주소창 오른쪽의 <b>설치 아이콘</b> 또는 ⋮ → <b>저장 및 공유 → 바로가기 만들기</b>로도 만들 수 있습니다.</li>'}</ol>`);
+    `<div class="row" style="margin-top:4px"><button id="scFile">바로가기 파일 받기 (.${ext})</button></div>
+     <ol><li>내려받은 파일을 <b>바탕화면</b>으로 옮깁니다.</li><li>더블클릭하면 기본 브라우저에서 이 페이지가 열립니다.</li></ol>`);
   $('#scFile').onclick=()=>downloadShortcut(plat);
-  if(deferredPrompt) $('#scApp').onclick=async()=>{ const p=deferredPrompt; deferredPrompt=null; p.prompt(); await p.userChoice.catch(()=>{}); $('#modal').classList.remove('open'); };
 }
 function downloadShortcut(plat){
   const url=location.href.split('#')[0], name='APIC 장비예약';
