@@ -22,9 +22,10 @@ input,textarea,select{font:inherit}
 .who button.rep:disabled{opacity:.35;cursor:not-allowed}
 .who button.rep.on{background:#f5a623;color:#3b2a00;font-weight:700}
 .gridwrap{flex:1 1 auto;min-height:0;overflow:auto;background:#fff}
-table.grid{border-collapse:separate;border-spacing:0;min-width:100%;table-layout:fixed;width:max-content;user-select:none;-webkit-user-select:none}
+table.grid{border-collapse:separate;border-spacing:0;min-width:0;table-layout:fixed;width:max-content;user-select:none;-webkit-user-select:none}
 table.grid th,table.grid td{height:38px;border-bottom:1px solid #e3e6ee;border-right:1px solid #f0f1f6;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
-table.grid thead th{position:sticky;top:0;z-index:3;background:#2a3166;color:#fff;font-weight:600;width:106px;min-width:106px}
+table.grid thead th{position:sticky;top:0;z-index:3;background:#2a3166;color:#fff;font-weight:600;width:80px;min-width:80px}
+table.grid.room thead th{width:106px;min-width:106px}
 table.grid thead th.corner{left:0;z-index:5;width:128px;min-width:128px;text-align:left;padding-left:12px}
 table.grid thead th.nowh{background:#3e4aa0}
 table.grid th.datec{position:sticky;left:0;z-index:2;background:#fff;font-weight:500;text-align:left;padding-left:12px;border-right:1px solid #d5d9e6}
@@ -67,6 +68,9 @@ textarea.note:focus{background:#f3f8ff}
 .login .err{color:#c62828;font-size:13px;min-height:18px;margin-top:10px}
 .login .first{background:#fff6e0;border:1px solid #f1d38a;border-radius:8px;padding:10px 12px;font-size:12.5px;color:#6a4b00;margin-bottom:6px}
 .linkbtn{border:0;background:none;color:#6b7280;text-decoration:underline;font-size:12px}
+.login .swrow{text-align:right;margin-top:8px}
+.login .swrow .linkbtn{color:#2a3166;font-size:13px;font-weight:600;text-decoration:none;padding:4px 0}
+.login .swrow .linkbtn:hover{text-decoration:underline}
 .wrapc{flex:1;display:flex}
 #modal{position:fixed;inset:0;background:rgba(15,20,40,.45);display:none;align-items:center;justify-content:center;z-index:50}
 #modal.open{display:flex}
@@ -123,13 +127,11 @@ textarea.note:focus{background:#f3f8ff}
    Firebase 값을 넣으면 실시간 공유, 비워두면(YOUR_ 상태) "데모 모드"(이 브라우저에만 저장)
    ============================================================ */
 const firebaseConfig = {
-    apiKey: "AIzaSyAlkvGNSdTIj6P4TwSMnPeFYSYxDBrz8BU",
-    authDomain: "apic-6244b.firebaseapp.com",
-    projectId: "apic-6244b",
-    storageBucket: "apic-6244b.firebasestorage.app",
-    messagingSenderId: "95470777162",
-    appId: "1:95470777162:web:24aa96229015f9de7cc7b3"
-  };
+  apiKey: "YOUR_API_KEY",
+  authDomain: "YOUR_PROJECT.firebaseapp.com",
+  projectId: "YOUR_PROJECT_ID",
+  appId: "YOUR_APP_ID"
+};
 
 const TITLE = "APIC 실험실 장비예약";
 const ADMIN_CODE = "9999";          // 관리자 모드 진입 코드
@@ -217,6 +219,7 @@ function makeLocalStore(){
     async countUsers(){ return Object.keys(db.users).length; },
     watchUsers:cb=>watch(()=>Object.values(db.users),cb),
     async setUser(u){ db.users[u.name]=u; save(); },
+    async createUser(u){ if(db.users[u.name]) throw new Error('exists'); db.users[u.name]=u; save(); },
     async deleteUser(name){ delete db.users[name]; save(); },
   };
 }
@@ -276,6 +279,10 @@ async function makeFirebaseStore(){
     async countUsers(){ return (await getDocs(query(collection(db,'users'),limit(1)))).size; },
     watchUsers:cb=>onSnapshot(collection(db,'users'),s=>cb(s.docs.map(d=>d.data()))),
     async setUser(u){ await setDoc(doc(db,'users',u.name),u); },
+    async createUser(u){
+      const ref=doc(db,'users',u.name);
+      await runTransaction(db,async tx=>{ if((await tx.get(ref)).exists()) throw new Error('exists'); tx.set(ref,u); });
+    },
     async deleteUser(name){ await deleteDoc(doc(db,'users',name)); },
   };
 }
@@ -316,32 +323,49 @@ function logout(msg){
   if(msg) toast(msg);
 }
 
-async function showLogin(){
+async function showLogin(mode='login'){
+  const signup = mode==='signup';
   $('#app').innerHTML=`<div class="wrapc"><div class="login">
-    <h1>${TITLE}</h1><p>이름과 PIN(숫자 4자리)으로 로그인하세요${state.store.mode==='demo'?' (데모 모드)':''}</p>
+    <h1>${TITLE}</h1><p>${signup?'이름과 PIN(숫자 4자리)을 정해 계정을 만드세요':'이름과 PIN(숫자 4자리)으로 로그인하세요'}${state.store.mode==='demo'?' (데모 모드)':''}</p>
     <div id="firstBox"></div>
     <label>이름</label><input id="lgName" autocomplete="username" autocapitalize="off">
-    <label>PIN (숫자 4자리)</label><input id="lgPin" class="pin" type="password" inputmode="numeric" maxlength="4" autocomplete="current-password">
-    <button class="go" id="lgGo">로그인</button><div class="err" id="lgErr"></div>
+    <label>PIN (숫자 4자리)</label><input id="lgPin" class="pin" type="password" inputmode="numeric" maxlength="4" autocomplete="${signup?'new-password':'current-password'}">
+    ${signup?'<label>PIN 확인</label><input id="lgPin2" class="pin" type="password" inputmode="numeric" maxlength="4" autocomplete="new-password">':''}
+    <div class="swrow"><button class="linkbtn" id="lgSwitch">${signup?'← 로그인으로 돌아가기':'계정 만들기'}</button></div>
+    <button class="go" id="lgGo">${signup?'계정 만들기':'로그인'}</button><div class="err" id="lgErr"></div>
     <div style="text-align:center;margin-top:10px"><button class="linkbtn" id="lgAdmin">관리자 모드</button></div></div></div>`;
   $('#lgAdmin').onclick=openPanel;
-  try{
-    if((await state.store.countUsers())===0)
-      $('#firstBox').innerHTML='<div class="first">등록된 계정이 없습니다. 아래 "관리자 모드"에서 코드를 입력하고 계정을 만들어 주세요.</div>';
-  }catch(e){ $('#lgErr').textContent='서버 연결 실패: '+e.message; }
+  $('#lgSwitch').onclick=()=>showLogin(signup?'login':'signup');
+  if(!signup){
+    try{
+      if((await state.store.countUsers())===0)
+        $('#firstBox').innerHTML='<div class="first">등록된 계정이 없습니다. 오른쪽 아래 "계정 만들기"로 첫 계정을 만들어 주세요.</div>';
+    }catch(e){ $('#lgErr').textContent='서버 연결 실패: '+e.message; }
+  }
   const go=async()=>{
     const name=$('#lgName').value.trim(), pin=$('#lgPin').value, err=$('#lgErr');
     err.textContent='';
     if(!name||!pin){ err.textContent='이름과 PIN을 입력하세요'; return; }
     if(!PIN_RE.test(pin)){ err.textContent='PIN은 숫자 4자리입니다'; return; }
     try{
+      if(signup){
+        if(name.includes('/')||name.length>20){ err.textContent='이름은 20자 이내이고 / 는 쓸 수 없습니다'; return; }
+        if(name===REPAIR){ err.textContent=`"${REPAIR}"은 사용할 수 없는 이름입니다`; return; }
+        if($('#lgPin2').value!==pin){ err.textContent='PIN이 서로 다릅니다. 다시 확인하세요'; return; }
+        const nu={name,pinHash:await hashPin(name,pin)};
+        try{ await state.store.createUser(nu); }
+        catch(e){ err.textContent=e.message==='exists'?'이미 사용 중인 이름입니다':'오류: '+e.message; return; }
+        state.user=nu; saveSession(nu); startApp(); toast('계정이 만들어졌습니다');
+        return;
+      }
       const u=await state.store.getUser(name);
       if(!u||u.pinHash!==await hashPin(name,pin)){ err.textContent='이름 또는 PIN이 올바르지 않습니다'; return; }
       state.user=u; saveSession(u); startApp();
     }catch(e){ err.textContent='오류: '+e.message; }
   };
   $('#lgGo').onclick=go;
-  $('#lgPin').onkeydown=e=>{ if(e.key==='Enter') go(); };
+  $('#lgPin').onkeydown=e=>{ if(e.key==='Enter'){ signup?$('#lgPin2').focus():go(); } };
+  if(signup) $('#lgPin2').onkeydown=e=>{ if(e.key==='Enter') go(); };
   $('#lgName').onkeydown=e=>{ if(e.key==='Enter') $('#lgPin').focus(); };
   $('#lgName').focus();
 }
@@ -368,7 +392,7 @@ function renderShell(){
 function helpText(){
   if(isAdmin()&&state.repair) return '수리 모드: 빈 칸을 누르면 "수리중"으로 예약됩니다 (수리 버튼을 다시 누르면 해제)';
   if(isRoom(curTab())) return '사용자 칸 클릭 = 사용 등록 · 내 칸 다시 클릭 = 해제 · 시작/종료 칸 = 날짜 선택 · 비고 = 직접 입력';
-  return '빈 칸 클릭 = 예약 · 내 예약(파란색) 클릭 = 삭제 · 마우스 드래그 = 여러 시간 예약';
+  return '빈칸클릭 = 예약, 내 예약 클릭 = 삭제';
 }
 function syncHeader(){
   const n=$('#whoName'); if(n&&state.user) n.innerHTML=esc(state.user.name)+(isAdmin()?'<span class="admtag"> · 관리자 모드</span>':'');
