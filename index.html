@@ -295,7 +295,7 @@ const state = {
   res:new Map(), room:new Map(), today:ymd(new Date()), hour:new Date().getHours(),
   unsubRes:null, unsubUsers:null, subKey:'', users:[], panelOpen:false, colEdit:null,
   repair:false, pending:false,
-  adminMode: sessionStorage.getItem('eqres_admin')==='1',
+  adminMode:false,
 };
 const isAdmin = () => state.adminMode;
 const isPastSlot = (date,hr) => date===state.today && hr<new Date().getHours();
@@ -311,6 +311,10 @@ async function verify(){
   try{
     const u=await state.store.getUser(state.user.name);
     if(!u || u.pinHash!==state.user.pinHash){ logout('계정 정보가 변경되어 로그아웃되었습니다'); return false; }
+    if(!!u.admin!==state.adminMode){           // 다른 기기에서 관리자 모드를 켜거나 끈 경우 반영
+      state.user=u; state.adminMode=!!u.admin; if(!u.admin) state.repair=false;
+      syncHeader(); renderTabs(); renderGrid(); if(state.panelOpen) renderPanel();
+    }
     return true;
   }catch(e){ toast('서버 확인 실패: '+e.message); return false; }
 }
@@ -355,12 +359,12 @@ async function showLogin(mode='login'){
         const nu={name,pinHash:await hashPin(name,pin)};
         try{ await state.store.createUser(nu); }
         catch(e){ err.textContent=e.message==='exists'?'이미 사용 중인 이름입니다':'오류: '+e.message; return; }
-        state.user=nu; saveSession(nu); startApp(); toast('계정이 만들어졌습니다');
+        state.user=nu; state.adminMode=false; saveSession(nu); startApp(); toast('계정이 만들어졌습니다');
         return;
       }
       const u=await state.store.getUser(name);
       if(!u||u.pinHash!==await hashPin(name,pin)){ err.textContent='이름 또는 PIN이 올바르지 않습니다'; return; }
-      state.user=u; saveSession(u); startApp();
+      state.user=u; state.adminMode=!!u.admin; saveSession(u); startApp();
     }catch(e){ err.textContent='오류: '+e.message; }
   };
   $('#lgGo').onclick=go;
@@ -628,7 +632,7 @@ function closePanel(){
   state.unsubUsers&&state.unsubUsers(); state.unsubUsers=null;
 }
 function setAdmin(on){
-  state.adminMode=on; on?sessionStorage.setItem('eqres_admin','1'):sessionStorage.removeItem('eqres_admin');
+  state.adminMode=on;
   if(!on) state.repair=false;
   if(state.user){ syncHeader(); renderTabs(); renderGrid(); }
   renderPanel();
@@ -645,6 +649,7 @@ function renderPanel(){
         <input class="pin" id="pcNew" type="password" inputmode="numeric" maxlength="4" placeholder="새 PIN (숫자 4자리)"><button id="pcBtn">변경</button></div>`:''}
     <h3>관리자 모드</h3>
     ${isAdmin()?`<div class="item"><span class="nm">관리자 모드 사용 중</span><button id="admOff">종료</button></div>
+      ${me?'<div style="font-size:12px;color:#8a90a2;margin-top:4px">이 계정은 로그아웃 후 다시 로그인해도 관리자 모드가 유지됩니다. 종료하면 다음에 코드를 다시 입력해야 합니다.</div>':''}
       <h3>장비 탭</h3><div id="tabList"></div>
       <div class="row"><input id="newTab" placeholder="새 장비 이름">
         <select id="newTabType"><option value="grid">일반(시간표)</option><option value="room">챔버형(시작·종료일)</option></select>
@@ -660,7 +665,8 @@ function renderPanel(){
       const cur=$('#pcCur').value, nw=$('#pcNew').value;
       if(!PIN_RE.test(cur)||!PIN_RE.test(nw)) return toast('PIN은 숫자 4자리로 입력하세요');
       if(await hashPin(me.name,cur)!==me.pinHash) return toast('현재 PIN이 올바르지 않습니다');
-      const nu={...me,pinHash:await hashPin(me.name,nw)};
+      const fresh=(await state.store.getUser(me.name))||me;
+      const nu={...fresh,pinHash:await hashPin(me.name,nw)};
       await state.store.setUser(nu); state.user=nu; saveSession(nu);
       $('#pcCur').value=$('#pcNew').value=''; toast('PIN을 변경했습니다');
     };
@@ -668,12 +674,23 @@ function renderPanel(){
   if(!isAdmin()){
     const enter=async()=>{
       if($('#admCode').value!==ADMIN_CODE) return toast('관리자 코드가 올바르지 않습니다');
-      await state.store.initIfNeeded().catch(()=>{}); setAdmin(true);
+      await state.store.initIfNeeded().catch(()=>{});
+      if(state.user){                                   // 이 계정은 이후 로그인 때도 관리자 모드 유지
+        const nu={...state.user,admin:true};
+        try{ await state.store.setUser(nu); state.user=nu; }catch(e){ return toast('저장 실패: '+e.message); }
+      }
+      setAdmin(true);
     };
     $('#admOn').onclick=enter; $('#admCode').onkeydown=e=>{ if(e.key==='Enter') enter(); };
     return;
   }
-  $('#admOff').onclick=()=>setAdmin(false);
+  $('#admOff').onclick=async()=>{
+    if(state.user){
+      const nu={...state.user}; delete nu.admin;
+      try{ await state.store.setUser(nu); state.user=nu; }catch(e){ return toast('저장 실패: '+e.message); }
+    }
+    setAdmin(false);
+  };
   $('#addTabBtn').onclick=async()=>{
     const n=$('#newTab').value.trim(); if(!n) return;
     await state.store.addTab(n,$('#newTabType').value).catch(e=>toast(e.message)); $('#newTab').value='';
@@ -770,7 +787,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&state.us
   if(sess){
     try{
       const u=await state.store.getUser(sess.name);
-      if(u&&u.pinHash===sess.hash){ state.user=u; startApp(); return; }
+      if(u&&u.pinHash===sess.hash){ state.user=u; state.adminMode=!!u.admin; startApp(); return; }
     }catch{}
     localStorage.removeItem(SESS);
   }
