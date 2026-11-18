@@ -129,8 +129,51 @@ table.grid thead th.nx{background:#1c2250}
 .nedit{flex:0 0 auto;border:1px solid #e3cf8a;background:#fff;border-radius:6px;padding:3px 9px;font-size:12px;color:#6a4b00}
 .mbox textarea{width:100%;border:1px solid #c9cedb;border-radius:8px;padding:8px;font-size:14px;resize:vertical}
 .nlab{display:block;font-size:12px;color:#555;margin:12px 0 4px}
+/* 30분 간격 표 */
+table.grid.half thead th{width:56px;min-width:56px;padding:0 2px;font-size:12px}
+table.grid.half td.slot{font-size:13px;padding:0 1px}
+table.grid.half thead th.hh{border-right:1px solid rgba(255,255,255,.6)}
+table.grid.half td.hh{border-right:1px solid #9aa1bb}
+/* 장비예약 / 장비 관리 탭 + 로그북 부족 띠 */
+.vtabs{flex:0 0 auto;display:flex;gap:6px;padding:6px 10px;background:#fff;border-bottom:1px solid #e3e6ee}
+.vtabs button{border:0;background:transparent;padding:7px 16px;border-radius:8px;color:#555;font-weight:500;display:inline-flex;align-items:center;gap:6px}
+.vtabs button:hover{background:#f1f3f4}
+.vtabs button.on{background:#d9e6fb;color:#0b4fc4;font-weight:700}
+.vtabs .bd{background:#d93025;color:#fff;border-radius:10px;font-size:11px;font-weight:700;padding:0 6px;min-width:18px;line-height:18px;text-align:center}
+.lowbar{flex:0 0 auto;display:none;flex-wrap:wrap;align-items:center;gap:2px 14px;background:#d93025;color:#fff;font-size:13px;font-weight:700;padding:6px 14px;max-height:5.6em;overflow:auto}
+#app.v-fac #gridwrap,#app.v-fac #help,#app.v-fac #tabs,#app.v-fac #lowbar{display:none!important}
+#app:not(.v-fac) #facwrap{display:none}
+.facwrap{flex:1 1 auto;min-height:0;overflow:auto;background:#fff}
+.facbar{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;font-size:12px;color:#6b7280;background:#fafbfd;border-bottom:1px solid #e3e6ee}
+.facbar button{border:1px solid #2a3166;background:#2a3166;color:#fff;border-radius:8px;padding:6px 12px;font-size:13px;white-space:nowrap}
+table.fac{width:100%;border-collapse:collapse;table-layout:fixed}
+table.fac th,table.fac td{height:48px;padding:0 10px;text-align:left;border-bottom:1px solid #e3e6ee;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.fac thead th{position:sticky;top:0;z-index:2;height:32px;background:#2a3166;color:#fff;font-size:12px;font-weight:600}
+table.fac td.fn{font-weight:600}
+table.fac td.edit{cursor:pointer}
+table.fac td.edit:hover{background:#e6f1ff}
+table.fac td.lg{padding:0 8px}
+.facempty{text-align:center!important;color:#777;white-space:normal!important;padding:34px 10px!important}
+.logbtn{width:100%;height:34px;border:1px solid #c9cedb;background:#fff;border-radius:8px;font-size:13px;color:#2a3166;white-space:nowrap}
+.logbtn.low{background:#d93025;border-color:#d93025;color:#fff;font-weight:700}
+.fnote{margin:10px 12px 18px;font-size:12px;color:#8a90a2;line-height:1.5}
+.mbox input.fi{width:100%;padding:9px 10px;border:1px solid #c9cedb;border-radius:8px}
+.chglist{max-height:42vh;overflow:auto;border:1px solid #e3e6ee;border-radius:8px;padding:2px 10px 8px;margin-top:8px}
+.chglist .ch{padding-top:8px}
+.chglist .cl{font-size:12px;font-weight:700;color:#2a3166;margin-top:6px}
+.chglist .cl.dl{color:#c62828}
+.chglist .cr{font-size:13px;padding:2px 0 2px 8px}
 /* ---------- 모바일: 작게 (한 화면에 날짜열 + 시간 4~5칸) ---------- */
 @media (max-width:700px){
+  table.grid.half thead th{width:40px;min-width:40px;font-size:11px;padding:0 1px}
+  table.grid.half td.slot{font-size:11px;padding:0 1px}
+  .vtabs{padding:4px 6px}
+  .vtabs button{padding:6px 12px;font-size:13px}
+  .lowbar{font-size:12px;padding:4px 8px}
+  table.fac th,table.fac td{padding:0 6px;font-size:12px;height:46px}
+  table.fac thead th{height:28px}
+  .logbtn{font-size:12px}
+  .facbar{padding:6px 8px;font-size:11px}
   body{font-size:12px}
   .top{padding:6px 8px;gap:6px}
   .brand{font-size:12px;gap:5px}
@@ -179,10 +222,23 @@ const DEFAULT_TABS = [
   { name:"신뢰성방", type:"room", cols:["열충격1호","열충격2호","열충격3호","열사이클","항온항습"].map((n,i)=>({id:'c'+i,name:n})) },
 ];
 const HOURS = Array.from({length:15},(_,i)=>9+i);   // 9~10시 ... 23~24시
-const DEFAULT_LIMIT = 20;                           // 1인당 장비(탭)별 기본 예약 한도(칸), 0 = 제한 없음
+const DEFAULT_LIMIT = 20;                           // 1인당 장비(탭)별 기본 예약 한도(시간)
+const LIMIT_MIN = 5, LIMIT_MAX = 40, LIMIT_STEP = 5; // 관리자 설정 범위: 5~40시간, 5시간 단위
 const DAYS = 22;                                    // 오늘 포함 22일(3주+1일)
+const stepOf = t => (t && +t.step===30) ? 30 : 60;  // 예약 간격(분): 기본 60, 탭별로 30분 선택 가능
+const slotH = t => stepOf(t)/60;                    // 한 칸의 시간(1 또는 0.5)
 const hourLabel = h => h<24 ? `${h}~${h+1}시` : `익일 ${h-24}~${h-23}시`;
-const hoursFor = t => { const n=Math.max(0,Math.min(9,+(t&&t.extra)||0)); return [...HOURS,...Array.from({length:n},(_,i)=>24+i)]; };
+const halfLabel = h => { const H=Math.floor(h), M=h%1?'30':'00'; return H>=24 ? `익${H-24}:${M}` : `${H}:${M}`; };
+const clock = h => `${Math.floor(h)%24}:${h%1?'30':'00'}`;
+const slotText = (hr,st) => st===30 ? `${clock(hr)}~${clock(hr+0.5)}` : hourLabel(hr);
+const fmtH = n => Number.isInteger(n) ? String(n) : n.toFixed(1);
+const hoursFor = t => {
+  const n=Math.max(0,Math.min(9,+(t&&t.extra)||0)), base=[...HOURS,...Array.from({length:n},(_,i)=>24+i)];
+  return stepOf(t)===30 ? base.flatMap(h=>[h,h+0.5]) : base;
+};
+const slotRange = (t,lo,hi) => hoursFor(t).filter(h=>h>=lo&&h<=hi);
+const limitOpts = sel => { let o=''; for(let v=LIMIT_MIN;v<=LIMIT_MAX;v+=LIMIT_STEP) o+=`<option value="${v}"${v===sel?' selected':''}>${v}시간</option>`; return o; };
+const stepOpts = sel => `<option value="60"${sel===60?' selected':''}>1시간</option><option value="30"${sel===30?' selected':''}>30분</option>`;
 const extraLabel = n => n===0 ? '23~24시까지 (기본)' : `익일 ${n-1}~${n}시까지`;
 const extraOpts = sel => [...Array(10).keys()].map(n=>`<option value="${n}"${n===sel?' selected':''}>${extraLabel(n)}</option>`).join('');
 const USE_FIREBASE = !!firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("YOUR_");
@@ -229,6 +285,7 @@ function makeLocalStore(){
   const load=()=>{ try{return JSON.parse(localStorage.getItem(KEY))}catch{return null} };
   let db = load() || { ver:3, tabs:seedTabs(), users:{}, res:{}, rooms:{} };
   if(!db.rooms) db.rooms={};
+  if(!db.fac) db.fac=[];
   if((db.ver||2)<3){            // 이전 데모 데이터에 새 기본 탭 추가
     DEFAULT_TABS.forEach((d,i)=>{ if(i>=11 && !db.tabs.find(t=>t.name===d.name)) db.tabs.push(seedTabs()[i]); });
     db.ver=3; localStorage.setItem(KEY,JSON.stringify(db));
@@ -248,6 +305,16 @@ function makeLocalStore(){
     async reorderTabs(list){ list.forEach(u=>{ const t=db.tabs.find(x=>x.id===u.id); if(t) t.order=u.order; }); save(); },
     async setTabExtra(id,n){ const t=db.tabs.find(x=>x.id===id); if(t){t.extra=n;save();} },
     async setTabLimit(id,n){ const t=db.tabs.find(x=>x.id===id); if(t){t.limit=n;save();} },
+    async setTabStep(id,n){ const t=db.tabs.find(x=>x.id===id); if(t){t.step=n;save();} },
+    async listRes(tabId,from){ return Object.values(db.res[tabId]||{}).filter(r=>r.date>=from).map(r=>({...r})); },
+    async applyStepDown(tabId,plan){          // 30분 → 1시간: 정각 칸이 비어 있으면 30분 예약을 올리고, 아니면 삭제
+      const o=db.res[tabId]=db.res[tabId]||{};
+      plan.del.forEach(r=>{ delete o[r.date+'_'+r.hour]; });
+      plan.move.forEach(r=>{ const b=Math.floor(r.hour); delete o[r.date+'_'+r.hour]; o[r.date+'_'+b]={date:r.date,hour:b,name:r.name}; });
+      const t=db.tabs.find(x=>x.id===tabId); if(t) t.step=60; save();
+    },
+    watchFac:cb=>watch(()=>[...db.fac],cb),
+    async facTx(fn){ db.fac=fn(db.fac.map(x=>({...x})))||[]; save(); },
     async setTabNotice(id,text){ const t=db.tabs.find(x=>x.id===id); if(t){t.notice=text;save();} },
     watchNotice:cb=>watch(()=>db.notice||'',cb),
     async setNotice(text){ db.notice=text; save(); },
@@ -306,6 +373,25 @@ async function makeFirebaseStore(){
     async reorderTabs(list){ const b=writeBatch(db); list.forEach(u=>b.update(doc(db,'equipments',u.id),{order:u.order})); await b.commit(); },
     async setTabExtra(id,n){ await updateDoc(doc(db,'equipments',id),{extra:n}); },
     async setTabLimit(id,n){ await updateDoc(doc(db,'equipments',id),{limit:n}); },
+    async setTabStep(id,n){ await updateDoc(doc(db,'equipments',id),{step:n}); },
+    async listRes(tabId,from){ return (await getDocs(query(resCol(tabId),where('date','>=',from)))).docs.map(d=>d.data()); },
+    async applyStepDown(tabId,plan){          // 30분 → 1시간: 정각 칸이 비어 있으면 30분 예약을 올리고, 아니면 삭제
+      const R=(date,hour)=>doc(db,'equipments',tabId,'reservations',`${date}_${hour}`), ops=[];
+      plan.del.forEach(r=>ops.push(b=>b.delete(R(r.date,r.hour))));
+      plan.move.forEach(r=>{ const h0=Math.floor(r.hour);
+        ops.push(b=>b.set(R(r.date,h0),{date:r.date,hour:h0,name:r.name,createdAt:Date.now()}));
+        ops.push(b=>b.delete(R(r.date,r.hour))); });
+      for(let i=0;i<ops.length;i+=400){ const b=writeBatch(db); ops.slice(i,i+400).forEach(f=>f(b)); await b.commit(); }
+      await updateDoc(doc(db,'equipments',tabId),{step:60});
+    },
+    watchFac:cb=>onSnapshot(doc(db,'meta','facilities'),s=>cb(s.exists()?(s.data().items||[]):[]),e=>toast('장비 관리 불러오기 실패: '+e.message)),
+    async facTx(fn){                          // 읽고-수정-쓰기를 한 번에 (동시에 눌러도 서로 덮어쓰지 않음)
+      const ref=doc(db,'meta','facilities');
+      await runTransaction(db,async tx=>{
+        const s=await tx.get(ref), items=s.exists()?(s.data().items||[]):[];
+        tx.set(ref,{items:fn(items.map(x=>({...x}))),at:Date.now()});
+      });
+    },
     async setTabNotice(id,text){ await updateDoc(doc(db,'equipments',id),{notice:text}); },
     watchNotice:cb=>onSnapshot(doc(db,'meta','notice'),s=>cb(s.exists()?(s.data().text||''):''),()=>{}),
     async setNotice(text){ await setDoc(doc(db,'meta','notice'),{text,at:Date.now()}); },
@@ -349,24 +435,35 @@ async function makeFirebaseStore(){
    ============================================================ */
 const state = {
   store:null, user:null, tabs:[], activeTab:localStorage.getItem('eqres_tab')||null,
-  res:new Map(), room:new Map(), today:bizToday(), hour:new Date().getHours(),
+  res:new Map(), room:new Map(), today:bizToday(), hour:0,
   unsubRes:null, unsubUsers:null, subKey:'', users:[], panelOpen:false, colEdit:null,
   repair:false, pending:false, notice:'',
   adminMode:false,
+  view:'res', fac:[], scrollKey:'', savedScroll:null,   // view: 'res'(장비예약) / 'fac'(장비 관리)
 };
+const slotTick = () => { const n=new Date(); return n.getHours()*2+(n.getMinutes()>=30?1:0); };   // 30분마다 바뀌는 값
+state.hour = slotTick();
 const isAdmin = () => state.adminMode;
-const isPastSlot = (date,hr) => {              // 지난 시간(현재 시간대는 예약 가능), 24시 이후 열은 다음 날 새벽으로 계산
-  const [y,m,d]=date.split('-').map(Number), n=new Date(); n.setMinutes(0,0,0);
-  return new Date(y,m-1,d,hr).getTime() < n.getTime();
-};
 const curTab = () => state.tabs.find(t=>t.id===state.activeTab);
 const isRoom = t => t && t.type==='room';
-const limitOf = t => { const v=t&&t.limit; return (v===undefined||v===null||isNaN(+v)) ? DEFAULT_LIMIT : +v; };
-function myUsed(){ let n=0; for(const r of state.res.values()) if(state.user&&r.name===state.user.name&&!isPastSlot(r.date,r.hour)) n++; return n; }
-function quotaLeft(){          // 이 장비에서 내가 더 예약할 수 있는 칸 수 (수리 예약은 한도 제외)
-  const tab=curTab(), limit=limitOf(tab), repair=isAdmin()&&state.repair;
-  if(!limit||repair||isRoom(tab)) return {left:Infinity,limit,name:tab?tab.name:''};
-  return {left:limit-myUsed(),limit,name:tab?tab.name:''};
+const isPastSlot = (date,hr,st) => {           // 지난 시간(현재 칸은 예약 가능), 24시 이후 열은 다음 날 새벽으로 계산
+  const step=st||stepOf(curTab());
+  const [y,m,d]=date.split('-').map(Number), n=new Date(); n.setMinutes(step===30&&n.getMinutes()>=30?30:0,0,0);
+  const H=Math.floor(hr), M=Math.round((hr-H)*60);
+  return new Date(y,m-1,d,H,M).getTime() < n.getTime();
+};
+const limitOf = t => {           // 1인 한도(시간): 5~40, 5시간 단위로 보정 (예전 값·0은 기본 20시간)
+  const v=+(t&&t.limit); if(!isFinite(v)||v<=0) return DEFAULT_LIMIT;
+  return Math.max(LIMIT_MIN,Math.min(LIMIT_MAX,Math.round(v/LIMIT_STEP)*LIMIT_STEP));
+};
+function myUsed(){               // 이 장비에서 내가 잡은 시간(지난 칸 제외, 30분 칸은 0.5시간)
+  let n=0; for(const r of state.res.values()) if(state.user&&r.name===state.user.name&&!isPastSlot(r.date,r.hour)) n++;
+  return n*slotH(curTab());
+}
+function quotaLeft(){            // 이 장비에서 내가 더 예약할 수 있는 시간 (수리 예약은 한도 제외)
+  const tab=curTab(), limit=limitOf(tab), repair=isAdmin()&&state.repair, sh=slotH(tab);
+  if(repair||isRoom(tab)) return {left:Infinity,limit,name:tab?tab.name:'',sh};
+  return {left:limit-myUsed(),limit,name:tab?tab.name:'',sh};
 }
 
 /* ---------------- 세션/로그인 ---------------- */
@@ -380,7 +477,7 @@ async function verify(){
     if(!u || u.pinHash!==state.user.pinHash){ logout('계정 정보가 변경되어 로그아웃되었습니다'); return false; }
     if(!!u.admin!==state.adminMode){           // 다른 기기에서 관리자 모드를 켜거나 끈 경우 반영
       state.user=u; state.adminMode=!!u.admin; if(!u.admin) state.repair=false;
-      syncHeader(); renderTabs(); renderGrid(); if(state.panelOpen) renderPanel();
+      syncHeader(); renderTabs(); renderGrid(); renderFac(); if(state.panelOpen) renderPanel();
     }
     return true;
   }catch(e){ toast('서버 확인 실패: '+e.message); return false; }
@@ -449,10 +546,15 @@ function renderShell(){
      <div class="who"><span id="whoName"></span>
        <button id="btnRepair" class="rep" title="관리자 모드에서만 사용 가능">수리</button>
        <button id="btnAdmin">관리</button><button id="btnOut">로그아웃</button></div></header>
+   <nav class="vtabs" id="vtabs"></nav>
    <div class="notice" id="notice"></div>
+   <div class="lowbar" id="lowbar"></div>
    <main class="gridwrap" id="gridwrap"></main>
+   <main class="facwrap" id="facwrap"></main>
    <div class="help" id="help"><span id="helpTxt"></span><span id="quota"></span></div>
    <footer class="tabs" id="tabs"></footer>`;
+  $('#vtabs').onclick=e=>{ const b=e.target.closest('button[data-v]'); if(b) setView(b.dataset.v); };
+  $('#facwrap').onclick=facClick;
   $('#btnOut').onclick=()=>logout();
   $('#btnAdmin').onclick=openPanel;
   const bi=$('#btnInstall'); if(bi) bi.onclick=()=>onInstall(bi.dataset.k);
@@ -460,7 +562,8 @@ function renderShell(){
     if(!isAdmin()) return toast('관리자 모드에서만 사용할 수 있습니다');
     state.repair=!state.repair; syncHeader(); toast(state.repair?'수리 모드 ON — 빈 칸을 누르면 "수리중"으로 예약됩니다':'수리 모드 OFF');
   };
-  syncHeader(); bindGrid(); renderTabs(); renderGrid();
+  syncHeader(); bindGrid(); renderTabs(); renderVTabs(); renderLowBar(); renderFac(); renderGrid();
+  $('#app').classList.toggle('v-fac',state.view==='fac');
 }
 
 function helpText(){
@@ -474,12 +577,12 @@ function syncHeader(){
   const h=$('#help'); if(h){ $('#helpTxt').textContent=helpText(); h.classList.toggle('rep',isAdmin()&&state.repair); }
   const qe=$('#quota'); if(qe){
     const tab=curTab(), lim=limitOf(tab);
-    if(!tab||isRoom(tab)||!lim||!state.user){ qe.textContent=''; }
-    else{ const u=myUsed(); qe.textContent=`내 예약 ${u}/${lim}칸`; qe.classList.toggle('full',u>=lim); }
+    if(!tab||isRoom(tab)||!state.user){ qe.textContent=''; }
+    else{ const u=myUsed(); qe.textContent=`내 예약 ${fmtH(u)}/${lim}시간`; qe.classList.toggle('full',u>=lim-1e-9); }
   }
 }
 
-function startApp(){ renderShell(); state.subKey=''; subscribeRes(); }
+function startApp(){ state.view='res'; state.scrollKey=''; renderShell(); state.subKey=''; subscribeRes(); }
 
 function onTabs(tabs){
   state.tabs=tabs;
@@ -526,31 +629,47 @@ function renderGrid(){
   const tab=curTab();
   if(!tab){ wrap.innerHTML=`<div class="empty">등록된 장비 탭이 없습니다. 관리자 모드에서 추가하세요.</div>`; return; }
   const st=wrap.scrollTop, sl=wrap.scrollLeft;
+  const key=`${tab.id}|${state.today}|${stepOf(tab)}|${hoursFor(tab).length}`;
+  if(isRoom(tab)) state.scrollKey='';                                       // 챔버형 탭을 거치면 다음에 시간표 탭을 열 때 다시 이동
+  const first=state.view==='res'&&!isRoom(tab)&&state.scrollKey!==key;      // 탭을 열 때 한 번만 현재 시각으로 이동
   wrap.innerHTML = isRoom(tab) ? roomHtml(tab) : gridHtml(tab);
-  wrap.scrollTop=st; wrap.scrollLeft=sl;
+  if(first){ state.scrollKey=key; wrap.scrollTop=0; scrollToNow(wrap); }
+  else{ wrap.scrollTop=st; wrap.scrollLeft=sl; }
   if(!isRoom(tab)) paintSel();
 }
 
+function scrollToNow(wrap){        // 현재 시각 칸이 날짜열 바로 뒤쪽에 오도록 가로 스크롤
+  const th=wrap.querySelector('thead th.nowh'), co=wrap.querySelector('thead th.corner');
+  if(!th||!co) return;
+  const x=th.getBoundingClientRect().left-wrap.getBoundingClientRect().left+wrap.scrollLeft;
+  wrap.scrollLeft=Math.max(0,x-co.offsetWidth-th.offsetWidth);
+}
+
 function gridHtml(tab){
-  const nowH=(()=>{ const hh=new Date().getHours(); return hh<ROLL_HOUR?24+hh:hh; })();   // 새벽에는 '익일' 열이 현재 시간
-  let h=`<table class="grid"><thead><tr><th class="corner">${esc(tab.name)}</th>`;
+  const step=stepOf(tab), half=step===30;
+  const now=new Date(), hh=now.getHours();
+  let nowH=hh<ROLL_HOUR?24+hh:hh; if(half&&now.getMinutes()>=30) nowH+=0.5;   // 새벽에는 '익일' 열이 현재 시간
+  let h=`<table class="grid${half?' half':''}"><thead><tr><th class="corner">${esc(tab.name)}</th>`;
   const hours=hoursFor(tab);
-  for(const hr of hours) h+=`<th class="${hr===nowH?'nowh':''}${hr===18?' split':''}${hr>=24?' nx':''}">${hourLabel(hr)}</th>`;
+  for(const hr of hours) h+=`<th class="${hr===nowH?'nowh':''}${hr===18?' split':''}${hr>=24?' nx':''}${half&&hr%1?' hh':''}">${half?halfLabel(hr):hourLabel(hr)}</th>`;
   h+='</tr></thead><tbody>';
   const base=parseYmd(state.today);
   for(let i=0;i<DAYS;i++){
     const d=new Date(base.getFullYear(),base.getMonth(),base.getDate()+i), ds=ymd(d), dw=d.getDay();
     h+=`<tr class="${ds===ymd(new Date())?'today':''} ${dw===0?'sun':dw===6?'sat':''}"><th class="datec">${label(ds)}</th>`;
+    let prev=null;
     for(const hr of hours){
       const r=state.res.get(`${ds}_${hr}`);
-      const c=['slot']; if(hr===18)c.push('split'); if(isPastSlot(ds,hr))c.push('past');
+      const c=['slot']; if(hr===18)c.push('split'); if(half&&hr%1)c.push('hh'); if(isPastSlot(ds,hr,step))c.push('past');
       if(r){
         c.push('taken');
         if(r.name===REPAIR){ c.push('repair'); if(!isAdmin()) c.push('locked'); }
         else if(r.name===state.user.name) c.push('mine');
         else if(!isAdmin()) c.push('locked');
       }
-      h+=`<td class="${c.join(' ')}" data-date="${ds}" data-hour="${hr}">${r?esc(r.name):''}</td>`;
+      const showName=r&&!(half&&prev===r.name);     // 30분 표: 같은 사람이 이어진 칸은 첫 칸에만 이름 표시
+      h+=`<td class="${c.join(' ')}" data-date="${ds}" data-hour="${hr}"${r?` title="${esc(r.name)}"`:''}>${showName?esc(r.name):''}</td>`;
+      prev=r?r.name:null;
     }
     h+='</tr>';
   }
@@ -595,7 +714,7 @@ function paintSel(){
   document.querySelectorAll('td.sel').forEach(x=>x.classList.remove('sel'));
   if(!drag) return;
   const lo=Math.min(drag.start,drag.end), hi=Math.max(drag.start,drag.end);
-  for(let hr=lo;hr<=hi;hr++){ const td=document.querySelector(`td.slot[data-date="${drag.date}"][data-hour="${hr}"]`); td&&td.classList.add('sel'); }
+  for(const hr of slotRange(curTab(),lo,hi)){ const td=document.querySelector(`td.slot[data-date="${drag.date}"][data-hour="${hr}"]`); td&&td.classList.add('sel'); }
 }
 let gridBound=false;
 const noteTimers={};
@@ -692,31 +811,31 @@ const reserveName = () => (isAdmin()&&state.repair) ? REPAIR : state.user.name;
 async function commit(date,lo,hi){
   if(!state.user) return;
   verify();                       // 계정 확인은 백그라운드로 (탭 반응 지연 방지)
-  const me=state.user, tabId=state.activeTab;
+  const me=state.user, tabId=state.activeTab, tab=curTab(), st=stepOf(tab);
   if(lo===hi){
     const r=state.res.get(`${date}_${lo}`);
     if(r){
       if(r.name===me.name||(isAdmin()&&r.name===REPAIR)){      // 내 예약 / 수리중: 확인창 없이 즉시 삭제
         await state.store.cancel(tabId,date,lo).catch(e=>toast('삭제 실패: '+e.message));
       } else if(isAdmin()){                                   // 관리자가 타인 예약 삭제: 확인
-        if(confirm(`${label(date)} ${lo}~${lo+1}시\n${r.name} 님의 예약을 삭제할까요?`))
+        if(confirm(`${label(date)} ${slotText(lo,st)}\n${r.name} 님의 예약을 삭제할까요?`))
           await state.store.cancel(tabId,date,lo).catch(e=>toast('삭제 실패: '+e.message));
       }
       return;                                                 // 일반 사용자의 타인 예약 칸은 무반응
     }
-    if(isPastSlot(date,lo)&&!isAdmin()){ toast('지난 시간은 예약할 수 없습니다'); return; }
-    const q=quotaLeft(); if(q.left<=0){ toast(`${q.name}은(는) 1인당 최대 ${q.limit}칸까지 예약할 수 있습니다`); return; }
+    if(isPastSlot(date,lo,st)&&!isAdmin()){ toast('지난 시간은 예약할 수 없습니다'); return; }
+    const q=quotaLeft(); if(q.left<q.sh-1e-9){ toast(`${q.name}은(는) 1인당 최대 ${q.limit}시간까지 예약할 수 있습니다`); return; }
     try{ await state.store.reserve(tabId,date,lo,reserveName()); }
     catch(e){ toast(e.message==='taken'?'방금 다른 사람이 예약했습니다':'저장 실패: '+e.message); }
     return;
   }
   let ok=0,skip=0,over=0; const name=reserveName(), q=quotaLeft();
-  for(let hr=lo;hr<=hi;hr++){
-    if(state.res.has(`${date}_${hr}`)||(isPastSlot(date,hr)&&!isAdmin())){ skip++; continue; }
-    if(ok>=q.left){ over++; continue; }
+  for(const hr of slotRange(tab,lo,hi)){
+    if(state.res.has(`${date}_${hr}`)||(isPastSlot(date,hr,st)&&!isAdmin())){ skip++; continue; }
+    if((ok+1)*q.sh>q.left+1e-9){ over++; continue; }
     try{ await state.store.reserve(tabId,date,hr,name); ok++; }catch{ skip++; }
   }
-  toast(`${ok}칸 예약${(skip||over)?` (${skip+over}칸은 제외됨${over?` · 1인 한도 ${q.limit}칸`:''})`:''}`);
+  toast(`${ok}칸 예약${(skip||over)?` (${skip+over}칸은 제외됨${over?` · 1인 한도 ${q.limit}시간`:''})`:''}`);
 }
 
 async function roomUserClick(colId){
@@ -750,7 +869,7 @@ function closePanel(){
 function setAdmin(on){
   state.adminMode=on;
   if(!on) state.repair=false;
-  if(state.user){ syncHeader(); renderTabs(); renderGrid(); }
+  if(state.user){ syncHeader(); renderTabs(); renderGrid(); renderFac(); }
   renderPanel();
 }
 
@@ -771,7 +890,8 @@ function renderPanel(){
         <select id="newTabType"><option value="grid">일반(시간표)</option><option value="room">챔버형(시작·종료일)</option></select>
         <button id="addTabBtn">탭 추가</button></div>
       <div class="row"><span style="font-size:13px;color:#555">새벽 시간열</span><select id="allExtra">${extraOpts(0)}</select><button id="allExtraBtn">모든 시간표 탭에 적용</button></div>
-      <div class="row"><span style="font-size:13px;color:#555">1인 예약 한도</span><input type="number" id="allLimit" min="0" max="999" value="${DEFAULT_LIMIT}" style="max-width:80px"><span style="font-size:12px;color:#777">칸 (0 = 제한 없음)</span><button id="allLimitBtn">모든 시간표 탭에 적용</button></div>
+      <div class="row"><span style="font-size:13px;color:#555">예약 간격</span><select id="allStep">${stepOpts(60)}</select><button id="allStepBtn">모든 시간표 탭에 적용</button></div>
+      <div class="row"><span style="font-size:13px;color:#555">1인 예약 한도</span><select id="allLimit">${limitOpts(DEFAULT_LIMIT)}</select><span style="font-size:12px;color:#777">(장비별, 5시간 단위)</span><button id="allLimitBtn">모든 시간표 탭에 적용</button></div>
       <h3>계정</h3><div id="userList"></div>
       <div class="row"><input id="nuName" placeholder="이름"><input class="pin" id="nuPin" inputmode="numeric" maxlength="4" placeholder="PIN 4자리" style="max-width:130px"><button id="addUserBtn">계정 추가</button></div>`
     :`<div class="row"><input id="admCode" type="password" inputmode="numeric" placeholder="관리자 코드"><button id="admOn">진입</button></div>`}
@@ -847,13 +967,18 @@ function renderPanel(){
   $('#tabList').onchange=async e=>{
     const sel=e.target.closest('select[data-act=extra]');
     if(sel){ await state.store.setTabExtra(sel.dataset.id,+sel.value).catch(er=>toast(er.message)); return; }
-    const inp=e.target.closest('input[data-act=limit]');
-    if(inp){ const n=Math.max(0,Math.min(999,Math.floor(+inp.value||0))); inp.value=n; await state.store.setTabLimit(inp.dataset.id,n).catch(er=>toast(er.message)); }
+    const lim=e.target.closest('select[data-act=limit]');
+    if(lim){ await state.store.setTabLimit(lim.dataset.id,+lim.value).catch(er=>toast(er.message)); return; }
+    const stp=e.target.closest('select[data-act=step]');
+    if(stp){ await changeSteps([stp.dataset.id],+stp.value); }
   };
   $('#allLimitBtn').onclick=async()=>{
-    const n=Math.max(0,Math.min(999,Math.floor(+$('#allLimit').value||0)));
+    const n=+$('#allLimit').value;
     for(const t of state.tabs) if(!isRoom(t)) await state.store.setTabLimit(t.id,n).catch(()=>{});
-    toast(n?`모든 시간표 탭의 1인 한도를 ${n}칸으로 적용했습니다`:'모든 시간표 탭의 예약 한도를 해제했습니다');
+    toast(`모든 시간표 탭의 1인 한도를 ${n}시간으로 적용했습니다`);
+  };
+  $('#allStepBtn').onclick=async()=>{
+    await changeSteps(state.tabs.filter(t=>!isRoom(t)).map(t=>t.id),+$('#allStep').value);
   };
   $('#allExtraBtn').onclick=async()=>{
     const n=+$('#allExtra').value;
@@ -891,7 +1016,7 @@ function renderTabList(){
   const el=$('#tabList'); if(!el) return;
   el.innerHTML=state.tabs.map((t,i)=>{
     const room=isRoom(t);
-    let h=`<div class="item"><span class="mv"><button data-act="up" data-id="${t.id}" title="위로"${i===0?' disabled':''}>▲</button><button data-act="down" data-id="${t.id}" title="아래로"${i===state.tabs.length-1?' disabled':''}>▼</button></span><span class="nm">${esc(t.name)}</span>${room?'<span class="tag">챔버형</span><button data-act="cols" data-id="'+t.id+'">열 관리</button>':`<label class="xl">새벽 <select data-act="extra" data-id="${t.id}">${extraOpts(+t.extra||0)}</select></label><label class="xl">한도 <input type="number" min="0" max="999" data-act="limit" data-id="${t.id}" value="${limitOf(t)}" style="width:52px;padding:3px;border:1px solid #c9cedb;border-radius:6px;font-size:12px">칸</label>`}
+    let h=`<div class="item"><span class="mv"><button data-act="up" data-id="${t.id}" title="위로"${i===0?' disabled':''}>▲</button><button data-act="down" data-id="${t.id}" title="아래로"${i===state.tabs.length-1?' disabled':''}>▼</button></span><span class="nm">${esc(t.name)}</span>${room?'<span class="tag">챔버형</span><button data-act="cols" data-id="'+t.id+'">열 관리</button>':`<label class="xl">새벽 <select data-act="extra" data-id="${t.id}">${extraOpts(+t.extra||0)}</select></label><label class="xl">간격 <select data-act="step" data-id="${t.id}">${stepOpts(stepOf(t))}</select></label><label class="xl">한도 <select data-act="limit" data-id="${t.id}">${limitOpts(limitOf(t))}</select></label>`}
       <button data-act="ren" data-id="${t.id}">이름 변경</button><button class="del" data-act="del" data-id="${t.id}">삭제</button></div>`;
     if(room&&state.colEdit===t.id){
       h+=`<div class="coled">${(t.cols||[]).map(c=>`<div class="item"><span class="nm">${esc(c.name)}</span>
@@ -909,12 +1034,139 @@ function renderUserList(){
     <button class="del" data-act="del" data-name="${esc(u.name)}">삭제</button></div>`).join('')||'<div class="empty" style="padding:12px">등록된 계정 없음</div>';
 }
 
+/* ---------------- 예약 간격 변경 (1시간 ↔ 30분) ---------------- */
+async function planStepDown(tab){      // 정각 칸이 비어 있으면 30분 예약을 올리고(move), 이미 예약돼 있으면 삭제(del)
+  const list=await state.store.listRes(tab.id,state.today);
+  const has=new Set(list.map(r=>`${r.date}_${r.hour}`));
+  const plan={tab,del:[],move:[]};
+  list.filter(r=>r.hour%1!==0).sort((a,b)=>a.date===b.date?a.hour-b.hour:(a.date<b.date?-1:1)).forEach(r=>{
+    (has.has(`${r.date}_${Math.floor(r.hour)}`)?plan.del:plan.move).push({date:r.date,hour:r.hour,name:r.name});
+  });
+  return plan;
+}
+function askStepDown(plans){
+  return new Promise(resolve=>{
+    const m=$('#modal'), nDel=plans.reduce((s,p)=>s+p.del.length,0), nMove=plans.reduce((s,p)=>s+p.move.length,0);
+    const line=r=>`<div class="cr">${shortDate(r.date)} ${slotText(r.hour,30)} · ${esc(r.name)}</div>`;
+    const body=plans.filter(p=>p.del.length||p.move.length).map(p=>`<div class="ch"><b>${esc(p.tab.name)}</b>
+      ${p.del.length?`<div class="cl dl">삭제 ${p.del.length}건</div>${p.del.map(line).join('')}`:''}
+      ${p.move.length?`<div class="cl">정각 칸으로 올림 ${p.move.length}건</div>${p.move.map(line).join('')}`:''}</div>`).join('');
+    m.innerHTML=`<div class="mbox"><div class="mhead"><b style="font-size:16px">1시간 단위로 변경</b><button id="mclose">✕</button></div>
+      <p style="font-size:15px;line-height:1.6;margin:6px 0"><b>삭제될 예약 ${nDel}건</b>${nMove?` · 정각 칸으로 올라갈 예약 ${nMove}건`:''}</p>
+      <p class="note">정각 칸(예: 12:00)에 예약이 있으면 뒤의 30분 칸(12:30)은 삭제되고, 정각 칸이 비어 있으면 30분 예약이 정각 칸으로 올라갑니다. 삭제된 예약은 되돌릴 수 없습니다.</p>
+      <div class="chglist">${body}</div>
+      <div class="row"><button id="stOk">변경하기</button><button id="stNo" style="background:#fff;color:#2a3166">취소</button></div></div>`;
+    m.classList.add('open');
+    const done=ok=>{ m.onclick=e=>{ if(e.target===m) closePanel(); }; if(state.panelOpen&&isAdmin()) renderPanel(); else m.classList.remove('open'); resolve(ok); };
+    $('#stOk').onclick=()=>done(true); $('#stNo').onclick=()=>done(false); $('#mclose').onclick=()=>done(false);
+    m.onclick=e=>{ if(e.target===m) done(false); };
+  });
+}
+async function changeSteps(ids,step){
+  const tabs=ids.map(id=>state.tabs.find(t=>t.id===id)).filter(t=>t&&!isRoom(t)&&stepOf(t)!==step);
+  if(!tabs.length){ toast('이미 같은 간격입니다'); renderTabList(); return; }
+  try{
+    if(step===30){
+      for(const t of tabs) await state.store.setTabStep(t.id,30);
+      toast(`${tabs.length}개 탭을 30분 간격으로 바꿨습니다`); return;
+    }
+    const plans=[]; for(const t of tabs) plans.push(await planStepDown(t));
+    if(plans.some(p=>p.del.length||p.move.length)){
+      if(!(await askStepDown(plans))){ renderTabList(); return; }
+    }
+    for(const p of plans) await state.store.applyStepDown(p.tab.id,p);
+    toast(`${tabs.length}개 탭을 1시간 간격으로 바꿨습니다`);
+  }catch(e){ toast('변경 실패: '+e.message); renderTabList(); }
+}
+
+/* ---------------- 장비 관리 탭 (담당자 · 로그북 부족 알림) ---------------- */
+function setView(v){
+  if(v===state.view) return;
+  const wrap=$('#gridwrap');
+  if(state.view==='res'&&wrap) state.savedScroll={l:wrap.scrollLeft,t:wrap.scrollTop};
+  state.view=v;
+  $('#app').classList.toggle('v-fac',v==='fac');
+  if(v==='res'&&wrap&&state.savedScroll){ wrap.scrollLeft=state.savedScroll.l; wrap.scrollTop=state.savedScroll.t; }
+  renderVTabs(); renderNotice(); renderLowBar(); renderFac();
+  if(v==='res') renderGrid();
+}
+const lowList = () => state.fac.filter(x=>x.low);
+function renderVTabs(){
+  const el=$('#vtabs'); if(!el) return; const n=lowList().length;
+  el.innerHTML=`<button data-v="res" class="${state.view==='res'?'on':''}">장비예약</button><button data-v="fac" class="${state.view==='fac'?'on':''}">장비 관리${n?`<span class="bd">${n}</span>`:''}</button>`;
+}
+function renderLowBar(){            // 장비예약 화면 상단 빨간 띠: 로그북이 부족한 장비만 표시 (신고자는 표시하지 않음)
+  const el=$('#lowbar'); if(!el) return; const l=lowList();
+  if(!l.length||state.view!=='res'){ el.style.display='none'; el.innerHTML=''; return; }
+  el.style.display='flex';
+  el.innerHTML='<span class="lic">⚠</span>'+l.map(x=>`<span>${esc(x.name)} 로그북 부족</span>`).join('');
+}
+function renderFac(){
+  const el=$('#facwrap'); if(!el) return;
+  const adm=isAdmin(), ed=adm?' edit':'';
+  const rows=state.fac.map(x=>`<tr><td class="fn${ed}" data-edit="${esc(x.id)}">${esc(x.name)}</td><td class="${ed.trim()}" data-edit="${esc(x.id)}">${esc(x.m1||'')}</td><td class="${ed.trim()}" data-edit="${esc(x.id)}">${esc(x.m2||'')}</td><td class="lg"><button class="logbtn${x.low?' low':''}" data-low="${esc(x.id)}" aria-pressed="${x.low?'true':'false'}">${x.low?'⚠ 부족':'부족 알림'}</button></td></tr>`).join('');
+  el.innerHTML=`${adm?'<div class="facbar"><span>장비·담당자 칸을 누르면 수정할 수 있습니다</span><button id="facAdd">＋ 장비 추가</button></div>':''}
+    <table class="fac"><colgroup><col style="width:33%"><col style="width:19%"><col style="width:19%"><col style="width:29%"></colgroup>
+    <thead><tr><th>장비</th><th>정</th><th>부</th><th>로그북</th></tr></thead>
+    <tbody>${rows||`<tr><td colspan="4" class="facempty">${adm?'등록된 장비가 없습니다. 위의 ＋ 장비 추가로 등록하세요.':'등록된 장비가 없습니다.'}</td></tr>`}</tbody></table>
+    <p class="fnote">로그북 종이가 부족하면 <b>부족 알림</b>을 눌러 주세요. 부족 상태에서 다시 누르면 해제됩니다. (누구나 가능)</p>`;
+}
+function facClick(e){
+  const b=e.target.closest('button[data-low]'); if(b){ toggleLow(b.dataset.low); return; }
+  if(e.target.closest('#facAdd')){ openFacEditor(null); return; }
+  const c=e.target.closest('[data-edit]'); if(c&&isAdmin()) openFacEditor(c.dataset.edit);
+}
+let facBusy=false;
+async function toggleLow(id){       // 한 번 누르면 알림, 다시 누르면 해제 (서버 값을 기준으로 뒤집으므로 동시에 눌러도 1회씩만 반영)
+  if(facBusy||!state.user) return;
+  facBusy=true;
+  try{ await state.store.facTx(items=>{ const it=items.find(x=>x.id===id); if(it) it.low=!it.low; return items; }); }
+  catch(e){ toast('저장 실패: '+e.message); }
+  finally{ setTimeout(()=>{ facBusy=false; },400); }
+}
+function openFacEditor(id){
+  if(!isAdmin()) return;
+  const it=id?state.fac.find(x=>x.id===id):null; if(id&&!it) return;
+  const m=$('#modal');
+  m.innerHTML=`<div class="mbox"><div class="mhead"><b style="font-size:16px">${it?'장비 수정':'장비 추가'}</b><button id="mclose">✕</button></div>
+    <label class="nlab">장비 이름</label><input class="fi" id="fnName" maxlength="30" value="${it?esc(it.name):''}">
+    <label class="nlab">담당자 (정)</label><input class="fi" id="fnM1" maxlength="20" value="${it?esc(it.m1||''):''}">
+    <label class="nlab">담당자 (부) — 없으면 비워 두세요</label><input class="fi" id="fnM2" maxlength="20" value="${it?esc(it.m2||''):''}">
+    <div class="row"><button id="fnSave">저장</button>${it?`<button id="fnUp" style="background:#fff;color:#2a3166">▲ 위로</button><button id="fnDown" style="background:#fff;color:#2a3166">▼ 아래로</button><button id="fnDel" style="background:#fff;color:#c62828;border-color:#efc3c3">삭제</button>`:''}</div></div>`;
+  m.classList.add('open');
+  const close=()=>m.classList.remove('open');
+  $('#mclose').onclick=close; m.onclick=e=>{ if(e.target===m) close(); };
+  $('#fnSave').onclick=async()=>{
+    const name=$('#fnName').value.trim(), m1=$('#fnM1').value.trim(), m2=$('#fnM2').value.trim();
+    if(!name) return toast('장비 이름을 입력하세요');
+    try{
+      await state.store.facTx(items=>{
+        if(it){ const x=items.find(v=>v.id===it.id); if(x){ x.name=name; x.m1=m1; x.m2=m2; } }
+        else items.push({id:'f'+Date.now().toString(36)+Math.random().toString(36).slice(2,5),name,m1,m2,low:false});
+        return items;
+      });
+      close(); toast(it?'저장했습니다':'장비를 추가했습니다');
+    }catch(e){ toast('저장 실패: '+e.message); }
+  };
+  if(!it) return;
+  const move=async d=>{
+    try{ await state.store.facTx(items=>{ const i=items.findIndex(v=>v.id===it.id), j=i+d; if(i<0||j<0||j>=items.length) return items; [items[i],items[j]]=[items[j],items[i]]; return items; }); }
+    catch(e){ toast('이동 실패: '+e.message); }
+  };
+  $('#fnUp').onclick=()=>move(-1); $('#fnDown').onclick=()=>move(1);
+  $('#fnDel').onclick=async()=>{
+    if(!confirm(`"${it.name}" 장비를 목록에서 삭제할까요?`)) return;
+    try{ await state.store.facTx(items=>items.filter(v=>v.id!==it.id)); close(); toast('삭제했습니다'); }
+    catch(e){ toast('삭제 실패: '+e.message); }
+  };
+}
+
 /* ---------------- 시간 흐름: 자정에 날짜 자동 이동 ---------------- */
 function tick(){
   if(!state.user) return;
-  const t=bizToday(), h=new Date().getHours();
+  const t=bizToday(), h=slotTick();
   if(t!==state.today){ state.today=t; state.hour=h; state.subKey=''; subscribeRes(); renderGrid(); }   // 맨 윗줄 제거, 아래 줄이 올라옴
-  else if(h!==state.hour){ state.hour=h; renderGrid(); }
+  else if(h!==state.hour){ state.hour=h; renderGrid(); }          // 30분마다 '지난 시간' 표시 갱신
 }
 setInterval(tick,15000);
 window.addEventListener('focus',()=>{ if(state.user) verify(); });
@@ -923,7 +1175,7 @@ document.addEventListener('visibilitychange',()=>{ if(!document.hidden&&state.us
 /* ---------------- 공지사항 (작성은 관리자만) ---------------- */
 function renderNotice(){
   const el=$('#notice'); if(!el) return;
-  const tab=curTab(), g=(state.notice||'').trim(), t=((tab&&tab.notice)||'').trim();
+  const tab=curTab(), g=(state.notice||'').trim(), t=state.view==='res'?((tab&&tab.notice)||'').trim():'';   // 장비 관리 화면에서는 전체 공지만 표시
   if(!g&&!t&&!isAdmin()){ el.style.display='none'; el.innerHTML=''; return; }
   el.style.display='flex';
   el.innerHTML=`<div class="nbody">${g?`<div class="nl"><span class="nt">공지</span>${esc(g)}</div>`:''}${t?`<div class="nl"><span class="nt">${esc(tab.name)}</span>${esc(t)}</div>`:''}${(!g&&!t)?'<div class="nl nempty">등록된 공지가 없습니다</div>':''}</div>${isAdmin()?'<button class="nedit" id="btnNotice">공지 수정</button>':''}`;
@@ -931,7 +1183,7 @@ function renderNotice(){
 }
 function openNoticeEditor(){
   if(!isAdmin()) return;
-  const tab=curTab();
+  const tab=state.view==='res'?curTab():null;
   const close=openInfo('공지 수정',`<label class="nlab">전체 공지 (모든 장비 화면 상단에 표시)</label>
     <textarea id="ntG" rows="3" maxlength="300">${esc(state.notice||'')}</textarea>
     ${tab?`<label class="nlab">${esc(tab.name)} 공지 (이 장비 탭에서만 표시)</label><textarea id="ntT" rows="3" maxlength="300">${esc(tab.notice||'')}</textarea>`:''}
@@ -1030,6 +1282,7 @@ function downloadShortcut(){
   catch(e){ $('#app').innerHTML=`<div class="empty">Firebase 연결 실패: ${esc(e.message)}</div>`; return; }
   state.store.watchTabs(onTabs);
   state.store.watchNotice(t=>{ state.notice=t||''; renderNotice(); });
+  state.store.watchFac(list=>{ state.fac=list||[]; renderVTabs(); renderLowBar(); renderFac(); });
   let sess=null; try{ sess=JSON.parse(localStorage.getItem(SESS)||'null'); }catch{}
   if(sess){
     try{
