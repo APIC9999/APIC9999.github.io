@@ -28,8 +28,9 @@ input,textarea,select{font:inherit}
 .who button.rep:disabled{opacity:.35;cursor:not-allowed}
 .who button.rep.on{background:#f5a623;color:#3b2a00;font-weight:700}
 .gridwrap{flex:1 1 auto;min-height:0;overflow:auto;background:#fff}
-table.grid{border-collapse:separate;border-spacing:0;min-width:0;table-layout:fixed;width:max-content;user-select:none;-webkit-user-select:none}
+table.grid{border-collapse:separate;border-spacing:0;min-width:0;table-layout:fixed;width:1px;user-select:none;-webkit-user-select:none}   /* width:1px + fixed = 첫 줄(헤더) 열 너비의 합으로 고정 → 이름이 길어도 열 너비가 변하지 않음 */
 table.grid th,table.grid td{height:38px;border-bottom:1px solid #e3e6ee;border-right:1px solid #f0f1f6;text-align:center;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 4px}
+table.grid td.slot{text-overflow:clip}   /* 이름이 칸보다 길면 엑셀처럼 칸 경계에서 그대로 잘라서 표시 */
 table.grid thead th{position:sticky;top:0;z-index:3;background:#2a3166;color:#fff;font-weight:600;width:80px;min-width:80px}
 table.grid.room thead th{width:106px;min-width:106px}
 table.grid thead th.corner{left:0;z-index:5;width:128px;min-width:128px;text-align:left;padding-left:12px}
@@ -483,6 +484,22 @@ const slotTick = () => { const n=new Date(); return n.getHours()*2+(n.getMinutes
 state.hour = slotTick();
 const isAdmin = () => state.adminMode;
 const curTab = () => state.tabs.find(t=>t.id===state.activeTab);
+/* ---- 예약 즉시 표시(낙관적 반영): 탭하는 순간 화면에 먼저 반영하고, 서버 확정 후 정리 ---- */
+state.opt = new Map();           // `${탭}|${날짜_시간}` → {tabId,k,rec}  rec=예약 레코드(추가 중) / null(취소 중)
+const inflight = new Set();      // 저장 중인 칸 (같은 칸 연타 무시)
+const optKey = (tabId,k) => `${tabId}|${k}`;
+const resGet = k => { const o=state.opt.get(optKey(state.activeTab,k)); return o ? o.rec : state.res.get(k); };
+function resList(){              // 서버 값 + 저장 중인 변경을 합친 현재 탭의 예약 목록
+  const m=new Map(state.res);
+  for(const o of state.opt.values()){ if(o.tabId!==state.activeTab) continue; if(o.rec) m.set(o.k,o.rec); else m.delete(o.k); }
+  return [...m.values()];
+}
+function settleOpt(tabId){       // 서버 값이 반영되면 임시 표시 제거
+  for(const [key,o] of state.opt){ if(o.tabId===tabId&&(o.rec?state.res.has(o.k):!state.res.has(o.k))) state.opt.delete(key); }
+}
+function holdOpt(key,o){         // 저장은 끝났는데 서버 반영 알림이 늦으면 3초 뒤 임시 표시 정리
+  setTimeout(()=>{ if(state.opt.get(key)===o){ state.opt.delete(key); renderGrid(); } },3000);
+}
 const isRoom = t => t && t.type==='room';
 const isPastSlot = (date,hr,st) => {           // 지난 시간(현재 칸은 예약 가능), 24시 이후 열은 다음 날 새벽으로 계산
   const step=st||stepOf(curTab());
@@ -495,7 +512,7 @@ const limitOf = t => {           // 1인 한도(시간): 5~40, 5시간 단위로
   return Math.max(LIMIT_MIN,Math.min(LIMIT_MAX,Math.round(v/LIMIT_STEP)*LIMIT_STEP));
 };
 function myUsed(){               // 이 장비에서 내가 잡은 시간(지난 칸 제외, 30분 칸은 0.5시간)
-  let n=0; for(const r of state.res.values()) if(state.user&&r.name===state.user.name&&!isPastSlot(r.date,r.hour)) n++;
+  let n=0; for(const r of resList()) if(state.user&&r.name===state.user.name&&!isPastSlot(r.date,r.hour)) n++;
   return n*slotH(curTab());
 }
 /* ---- 연구책임자 / 팀 ---- */
@@ -517,7 +534,7 @@ const sameFields = (a,b) => USER_FIELDS.every(k=>(a[k]||'')===(b[k]||''));
 const syncUserFields = (cur,src) => { const n={...cur}; for(const k of USER_FIELDS){ if(src[k]) n[k]=src[k]; else delete n[k]; } return n; };
 function teamUsed(){             // 이 장비에서 같은 연구책임자 사용자들이 잡은 시간 합계(나 포함, 지난 칸·수리 제외)
   const pi=myPiId(); if(!pi) return 0;
-  let n=0; for(const r of state.res.values()){ if(r.name===REPAIR||isPastSlot(r.date,r.hour)) continue; if(piOfName(r.name)===pi) n++; }
+  let n=0; for(const r of resList()){ if(r.name===REPAIR||isPastSlot(r.date,r.hour)) continue; if(piOfName(r.name)===pi) n++; }
   return n*slotH(curTab());
 }
 function quotaLeft(){            // 이 장비에서 더 예약할 수 있는 시간 = 개인 남은 시간과 팀 남은 시간 중 작은 값 (수리 예약은 한도 제외)
@@ -557,7 +574,7 @@ async function verify(){
 
 function logout(msg){
   localStorage.removeItem(SESS);
-  state.unsubRes&&state.unsubRes(); state.unsubRes=null; state.subKey=''; state.res=new Map(); state.room=new Map();
+  state.unsubRes&&state.unsubRes(); state.unsubRes=null; state.subKey=''; state.res=new Map(); state.opt=new Map(); state.room=new Map();
   state.user=null; state.adminMode=false; state.repair=false; state.piPrompted=false; sessionStorage.removeItem('eqres_admin');
   closePanel(); showLogin();
   if(msg) toast(msg);
@@ -692,7 +709,7 @@ function subscribeRes(){
   if(!tab) return;
   state.unsubRes = kind==='room'
     ? state.store.watchRoom(tab.id,m=>{ state.room=m; renderGrid(); })
-    : state.store.watchRes(tab.id,state.today,list=>{ state.res=new Map(list.map(r=>[`${r.date}_${r.hour}`,r])); renderGrid(); });
+    : state.store.watchRes(tab.id,state.today,list=>{ state.res=new Map(list.map(r=>[`${r.date}_${r.hour}`,r])); settleOpt(tab.id); renderGrid(); });
 }
 
 function renderTabs(){
@@ -763,9 +780,8 @@ function gridHtml(tab){
   for(let i=0;i<DAYS;i++){
     const d=new Date(base.getFullYear(),base.getMonth(),base.getDate()+i), ds=ymd(d), dw=d.getDay();
     h+=`<tr class="${ds===ymd(new Date())?'today':''} ${dw===0?'sun':dw===6?'sat':''}"><th class="datec">${label(ds)}</th>`;
-    let prev=null;
     for(const hr of hours){
-      const r=state.res.get(`${ds}_${hr}`);
+      const r=resGet(`${ds}_${hr}`);
       const c=['slot']; if(hr===18)c.push('split'); if(half&&hr%1)c.push('hh'); if(isPastSlot(ds,hr,step))c.push('past');
       if(r){
         c.push('taken');
@@ -773,9 +789,7 @@ function gridHtml(tab){
         else if(r.name===state.user.name) c.push('mine');
         else if(!isAdmin()) c.push('locked');
       }
-      const showName=r&&!(half&&prev===r.name);     // 30분 표: 같은 사람이 이어진 칸은 첫 칸에만 이름 표시
-      h+=`<td class="${c.join(' ')}" data-date="${ds}" data-hour="${hr}"${r?` title="${esc(r.name)}"`:''}>${showName?esc(r.name):''}</td>`;
-      prev=r?r.name:null;
+      h+=`<td class="${c.join(' ')}" data-date="${ds}" data-hour="${hr}"${r?` title="${esc(r.name)}"`:''}>${r?esc(r.name):''}</td>`;
     }
     h+='</tr>';
   }
@@ -921,31 +935,57 @@ async function commit(date,lo,hi){
   verify();                       // 계정 확인은 백그라운드로 (탭 반응 지연 방지)
   const me=state.user, tabId=state.activeTab, tab=curTab(), st=stepOf(tab);
   if(lo===hi){
-    const r=state.res.get(`${date}_${lo}`);
+    const key=optKey(tabId,`${date}_${lo}`);
+    if(inflight.has(key)) return;                             // 저장 중인 칸을 또 누르면 무시 (연타로 예약↔취소가 뒤집히는 것 방지)
+    const r=resGet(`${date}_${lo}`), when=`${label(date)} ${slotText(lo,st)}`;
     if(r){
       if(r.name===me.name||(isAdmin()&&r.name===REPAIR)){      // 내 예약 / 수리중: 확인창 없이 즉시 삭제
-        await state.store.cancel(tabId,date,lo).catch(e=>toast('삭제 실패: '+e.message));
+        toast(`${when} 예약 취소`); await doCancel(tabId,date,lo);
       } else if(isAdmin()){                                   // 관리자가 타인 예약 삭제: 확인
-        if(confirm(`${label(date)} ${slotText(lo,st)}\n${r.name} 님의 예약을 삭제할까요?`))
-          await state.store.cancel(tabId,date,lo).catch(e=>toast('삭제 실패: '+e.message));
+        if(confirm(`${when}\n${r.name} 님의 예약을 삭제할까요?`))
+          { toast(`${when} 예약 취소`); await doCancel(tabId,date,lo); }
       }
       return;                                                 // 일반 사용자의 타인 예약 칸은 무반응
     }
     if(isPastSlot(date,lo,st)&&!isAdmin()){ toast('지난 시간은 예약할 수 없습니다'); return; }
     if(!repairNow()&&!canReserve()) return;
     const q=quotaLeft(); if(q.left<q.sh-1e-9){ toast(quotaMsg(q)); return; }
-    try{ await state.store.reserve(tabId,date,lo,reserveName()); }
-    catch(e){ toast(e.message==='taken'?'방금 다른 사람이 예약했습니다':'저장 실패: '+e.message); }
+    toast(`${when} 예약`);                                     // 어느 칸이 눌렸는지 바로 표시
+    const res=await doReserve(tabId,[lo],date,reserveName());
+    if(!res.ok) toast(res.err==='taken'?`${when}\n방금 다른 사람이 예약했습니다`:'저장 실패: '+res.err);
     return;
   }
   if(!repairNow()&&!canReserve()) return;
-  let ok=0,skip=0,over=0; const name=reserveName(), q=quotaLeft();
+  let ok=0,skip=0,over=0; const name=reserveName(), q=quotaLeft(), todo=[];
   for(const hr of slotRange(tab,lo,hi)){
-    if(state.res.has(`${date}_${hr}`)||(isPastSlot(date,hr,st)&&!isAdmin())){ skip++; continue; }
-    if((ok+1)*q.sh>q.left+1e-9){ over++; continue; }
-    try{ await state.store.reserve(tabId,date,hr,name); ok++; }catch{ skip++; }
+    if(resGet(`${date}_${hr}`)||inflight.has(optKey(tabId,`${date}_${hr}`))||(isPastSlot(date,hr,st)&&!isAdmin())){ skip++; continue; }
+    if((todo.length+1)*q.sh>q.left+1e-9){ over++; continue; }
+    todo.push(hr);
   }
+  if(todo.length){ const res=await doReserve(tabId,todo,date,name); ok=res.done; skip+=todo.length-res.done; }
   toast(`${ok}칸 예약${(skip||over)?` (${skip+over}칸은 제외됨${over?` · ${q.pleft<=q.tleft?`1인 한도 ${q.limit}시간`:`팀 한도 ${q.tlimit}시간`}`:''})`:''}`);
+}
+
+/* 예약/취소: 화면에 먼저 반영 → 저장 → 실패하면 되돌리고 알림 */
+async function doReserve(tabId,hours,date,name){
+  const items=hours.map(hr=>{ const k=`${date}_${hr}`, key=optKey(tabId,k), o={tabId,k,rec:{date,hour:hr,name}}; return {hr,key,o}; });
+  for(const it of items){ state.opt.set(it.key,it.o); inflight.add(it.key); }
+  renderGrid();
+  let done=0, err='';
+  await Promise.all(items.map(async it=>{
+    try{ await state.store.reserve(tabId,date,it.hr,name); done++; holdOpt(it.key,it.o); }
+    catch(e){ if(!err) err=e.message; if(state.opt.get(it.key)===it.o) state.opt.delete(it.key); }
+    finally{ inflight.delete(it.key); }
+  }));
+  if(done<items.length) renderGrid();
+  return {ok:done===items.length,done,err};
+}
+async function doCancel(tabId,date,hr){
+  const k=`${date}_${hr}`, key=optKey(tabId,k), o={tabId,k,rec:null};
+  state.opt.set(key,o); inflight.add(key); renderGrid();
+  try{ await state.store.cancel(tabId,date,hr); holdOpt(key,o); return true; }
+  catch(e){ if(state.opt.get(key)===o) state.opt.delete(key); renderGrid(); toast('삭제 실패: '+e.message); return false; }
+  finally{ inflight.delete(key); }
 }
 
 async function roomUserClick(colId){
