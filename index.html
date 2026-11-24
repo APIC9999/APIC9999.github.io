@@ -88,6 +88,7 @@ textarea.note:focus{background:#f3f8ff}
 .mbox h3{margin:18px 0 8px;font-size:14px;color:#2a3166}
 .item{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #eef0f5;flex-wrap:wrap}
 .item .nm{flex:1;font-weight:600}
+.item .brk{flex:0 0 100%;height:0;margin:-4px 0}   /* 시간표 탭 줄: 이름 변경·삭제·개별 팀 버튼은 항상 둘째 줄 */
 .item .tag{font-size:11px;background:#e8ecf8;color:#2a3166;border-radius:8px;padding:1px 7px}
 .item button,.row button{border:1px solid #c9cedb;background:#fff;border-radius:6px;padding:4px 9px;font-size:12.5px}
 .item button.del{color:#c62828;border-color:#efc3c3}
@@ -149,6 +150,7 @@ table.grid thead th.nx{background:#1c2250}
 .item select.pis{max-width:48%;padding:3px 4px;font-size:12px;border:1px solid #c9cedb;border-radius:6px;background:#fff}
 /* 30분 간격 표 */
 table.grid.half thead th{width:56px;min-width:56px;padding:0 2px;font-size:12px}
+@media (min-width:701px){ table.grid.half thead th.corner{width:128px;min-width:128px;padding:0 0 0 12px;font-size:14px} }   /* PC 30분 표: 날짜 열은 1시간 표와 같은 너비 유지 */
 table.grid.half td.slot{font-size:13px;padding:0 1px}
 table.grid.half thead th.hh{border-right:1px solid rgba(255,255,255,.6)}
 table.grid.half td.hh{border-right:1px solid #9aa1bb}
@@ -260,11 +262,15 @@ const extraOpts = sel => [...Array(10).keys()].map(n=>`<option value="${n}"${n==
 const USE_FIREBASE = !!firebaseConfig.apiKey && !firebaseConfig.apiKey.startsWith("YOUR_");
 const PIN_RE = /^\d{4}$/;
 const TEAM_DEFAULT = 20, TEAM_MIN = 10, TEAM_MAX = 50, TEAM_STEP = 10;   // 팀(같은 연구책임자) 장비별 한도: 10~50시간(10시간 단위) / 제한 없음(0)
-const teamLimitOf = t => {
-  const v=t&&t.teamLimit; if(v===0||v==='0') return Infinity;
-  const n=+v; if(!isFinite(n)||n<=0) return TEAM_DEFAULT;
+const normTeam = v => {          // 저장된 팀 한도 값 → 시간(Infinity = 제한 없음), 값이 없거나 이상하면 null
+  if(v===0||v==='0') return Infinity;
+  const n=+v; if(v===undefined||v===null||v===''||!isFinite(n)||n<=0) return null;
   return Math.max(TEAM_MIN,Math.min(TEAM_MAX,Math.round(n/TEAM_STEP)*TEAM_STEP));
 };
+const teamLimitOf = t => { const n=normTeam(t&&t.teamLimit); return n===null?TEAM_DEFAULT:n; };
+// 장비별 연구책임자 개별 팀 한도: 해당 연구책임자 팀은 기본 팀 한도 대신 이 값을 우선 적용
+const teamLimitFor = (t,pi) => { const n=pi&&t&&t.teamLimits?normTeam(t.teamLimits[pi]):null; return n===null?teamLimitOf(t):n; };
+const piLimitList = (t,validIds) => Object.keys((t&&t.teamLimits)||{}).filter(id=>validIds.includes(id)&&normTeam(t.teamLimits[id])!==null).map(id=>({id,n:normTeam(t.teamLimits[id])}));
 const teamOpts = sel => { let o=''; for(let v=TEAM_MIN;v<=TEAM_MAX;v+=TEAM_STEP) o+=`<option value="${v}"${v===sel?' selected':''}>${v}시간</option>`; return o+`<option value="0"${sel===Infinity?' selected':''}>제한 없음</option>`; };
 
 /* ---------------- 유틸 ---------------- */
@@ -330,6 +336,7 @@ function makeLocalStore(){
     async setTabExtra(id,n){ const t=db.tabs.find(x=>x.id===id); if(t){t.extra=n;save();} },
     async setTabLimit(id,n){ const t=db.tabs.find(x=>x.id===id); if(t){t.limit=n;save();} },
     async setTabTeamLimit(id,n){ const t=db.tabs.find(x=>x.id===id); if(t){t.teamLimit=n;save();} },
+    async setTabPiLimit(id,pi,n){ const t=db.tabs.find(x=>x.id===id); if(!t) return; t.teamLimits=t.teamLimits||{}; if(n===null) delete t.teamLimits[pi]; else t.teamLimits[pi]=n; save(); },
     async setTabStep(id,n){ const t=db.tabs.find(x=>x.id===id); if(t){t.step=n;save();} },
     async listRes(tabId,from){ return Object.values(db.res[tabId]||{}).filter(r=>r.date>=from).map(r=>({...r})); },
     async applyStepDown(tabId,plan){          // 30분 → 1시간: 정각 칸이 비어 있으면 30분 예약을 올리고, 아니면 삭제
@@ -374,7 +381,7 @@ async function makeFirebaseStore(){
   const V='10.14.1';
   const appMod = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-app.js`);
   const fs = await import(`https://www.gstatic.com/firebasejs/${V}/firebase-firestore.js`);
-  const {collection,doc,getDoc,getDocs,setDoc,deleteDoc,onSnapshot,query,where,orderBy,limit,runTransaction,writeBatch,addDoc,updateDoc} = fs;
+  const {collection,doc,getDoc,getDocs,setDoc,deleteDoc,onSnapshot,query,where,orderBy,limit,runTransaction,writeBatch,addDoc,updateDoc,deleteField} = fs;
   const app = appMod.initializeApp(firebaseConfig);
   const db = fs.getFirestore(app);
   const resCol = tabId => collection(db,'equipments',tabId,'reservations');
@@ -402,6 +409,7 @@ async function makeFirebaseStore(){
     async setTabExtra(id,n){ await updateDoc(doc(db,'equipments',id),{extra:n}); },
     async setTabLimit(id,n){ await updateDoc(doc(db,'equipments',id),{limit:n}); },
     async setTabTeamLimit(id,n){ await updateDoc(doc(db,'equipments',id),{teamLimit:n}); },
+    async setTabPiLimit(id,pi,n){ await updateDoc(doc(db,'equipments',id),{[`teamLimits.${pi}`]:n===null?deleteField():n}); },
     async setTabStep(id,n){ await updateDoc(doc(db,'equipments',id),{step:n}); },
     async listRes(tabId,from){ return (await getDocs(query(resCol(tabId),where('date','>=',from)))).docs.map(d=>d.data()); },
     async applyStepDown(tabId,plan){          // 30분 → 1시간: 정각 칸이 비어 있으면 30분 예약을 올리고, 아니면 삭제
@@ -475,7 +483,7 @@ const state = {
   store:null, user:null, tabs:[], activeTab:localStorage.getItem('eqres_tab')||null,
   res:new Map(), room:new Map(), today:bizToday(), hour:0,
   unsubRes:null, unsubUsers:null, subKey:'', users:[], panelOpen:false, colEdit:null,
-  repair:false, pending:false, notice:'',
+  repair:false, pending:false, notice:'', tpiEdit:null,
   pis:[], pisReady:false, usersMap:new Map(), usersReady:false, piPrompted:false, renaming:false,   // 연구책임자 목록 / 사용자별 연구책임자
   adminMode:false,
   view:'res', fac:[], scrollKey:'', savedScroll:null,   // view: 'res'(장비예약) / 'fac'(장비 관리)
@@ -538,7 +546,7 @@ function teamUsed(){             // 이 장비에서 같은 연구책임자 사�
   return n*slotH(curTab());
 }
 function quotaLeft(){            // 이 장비에서 더 예약할 수 있는 시간 = 개인 남은 시간과 팀 남은 시간 중 작은 값 (수리 예약은 한도 제외)
-  const tab=curTab(), limit=limitOf(tab), tlimit=teamLimitOf(tab), sh=slotH(tab), base={limit,tlimit,name:tab?tab.name:'',sh};
+  const tab=curTab(), limit=limitOf(tab), tlimit=teamLimitFor(tab,myPiId()), sh=slotH(tab), base={limit,tlimit,name:tab?tab.name:'',sh};
   if(repairNow()||isRoom(tab)) return {...base,left:Infinity,pleft:Infinity,tleft:Infinity};
   const pleft=limit-myUsed(), tleft=tlimit===Infinity?Infinity:tlimit-teamUsed();
   return {...base,left:Math.min(pleft,tleft),pleft,tleft};
@@ -683,7 +691,7 @@ function syncHeader(){
     else if(!state.pisReady||!state.usersReady){ qe.innerHTML=''; qe.classList.remove('full'); }
     else if(!myPiId()){ qe.innerHTML=state.pis.length?'연구책임자 선택 필요':'연구책임자 목록 없음'; qe.classList.add('full'); if(state.pis.length) qe.classList.add('pick'); }
     else{
-      const lim=limitOf(tab), tl=teamLimitOf(tab), u=myUsed(), tu=teamUsed();
+      const lim=limitOf(tab), tl=teamLimitFor(tab,myPiId()), u=myUsed(), tu=teamUsed();
       qe.innerHTML=`내 예약 ${fmtH(u)}/${lim}${unit} · 팀 예약 ${fmtH(tu)}${tl===Infinity?`${unit}(제한 없음)`:`/${tl}${unit}`}`;
       qe.classList.toggle('full',u>=lim-1e-9||tu>=tl-1e-9);
     }
@@ -1014,7 +1022,7 @@ function openPanel(){
   renderPanel();
 }
 function closePanel(){
-  state.panelOpen=false; $('#modal').classList.remove('open');
+  state.panelOpen=false; state.tpiEdit=null; $('#modal').classList.remove('open');
   if(!state.user) unsubscribeUsers();          // 로그인 전(관리자 모드만 연 경우)에는 구독 해제
 }
 function setAdmin(on){
@@ -1111,6 +1119,13 @@ function renderPanel(){
     if(act==='ren'){ const n=(prompt('새 이름',t.name)||'').trim(); if(n&&n!==t.name) await state.store.renameTab(id,n).catch(er=>toast(er.message)); }
     if(act==='del'&&confirm(`"${t.name}" 탭과 이 장비의 모든 예약이 삭제됩니다. 계속할까요?`)) await state.store.deleteTab(id).catch(er=>toast(er.message));
     if(act==='cols'){ state.colEdit=state.colEdit===id?null:id; renderTabList(); }
+    if(act==='tpi'){ state.tpiEdit=state.tpiEdit===id?null:id; renderTabList(); return; }
+    if(act==='tpiadd'){
+      const pi=($('#tpiPi')||{}).value, n=+($('#tpiLim')||{}).value;
+      if(!pi){ toast('연구책임자를 선택하세요'); return; }
+      await state.store.setTabPiLimit(id,pi,n).catch(er=>toast('저장 실패: '+er.message)); return;
+    }
+    if(act==='tpidel'){ await state.store.setTabPiLimit(id,b.dataset.pi,null).catch(er=>toast('저장 실패: '+er.message)); return; }
     const cols=t.cols||[];
     if(act==='cadd'){
       const inp=$('#newCol'), n=(inp&&inp.value||'').trim(); if(!n) return;
@@ -1133,6 +1148,8 @@ function renderPanel(){
     if(sel){ await state.store.setTabExtra(sel.dataset.id,+sel.value).catch(er=>toast(er.message)); return; }
     const lim=e.target.closest('select[data-act=limit]');
     if(lim){ await state.store.setTabLimit(lim.dataset.id,+lim.value).catch(er=>toast(er.message)); return; }
+    const tpl=e.target.closest('select[data-act=tpilim]');
+    if(tpl){ await state.store.setTabPiLimit(tpl.dataset.id,tpl.dataset.pi,+tpl.value).catch(er=>toast('저장 실패: '+er.message)); return; }
     const tl=e.target.closest('select[data-act=tlimit]');
     if(tl){ await state.store.setTabTeamLimit(tl.dataset.id,+tl.value).catch(er=>toast(er.message)); return; }
     const stp=e.target.closest('select[data-act=step]');
@@ -1217,12 +1234,21 @@ function renderPanel(){
   subscribeUsers();
   renderTabList(); renderPiList(); renderUserList();
 }
+const btnTpi = t => { const n=piLimitList(t,state.pis.map(p=>p.id)).length; return `<button data-act="tpi" data-id="${t.id}" title="연구책임자별 팀 한도">개별 팀${n?` (${n})`:''}</button>`; };
+function tpiBlock(t){            // 장비별 연구책임자 개별 팀 한도 편집 영역
+  const ids=state.pis.map(p=>p.id), list=piLimitList(t,ids).map(x=>({...x,name:piName(x.id)})).sort((a,b)=>a.name.localeCompare(b.name,'ko'));
+  const base=teamLimitOf(t), free=piSorted().filter(p=>!list.some(x=>x.id===p.id));
+  return `<div class="coled"><div style="font-size:12px;color:#555;padding:4px 0 6px">기본 팀 한도 ${base===Infinity?'제한 없음':base+'시간'} · 아래 연구책임자 팀은 이 장비에서 <b>개별 한도가 우선</b> 적용됩니다 (1인 한도는 그대로)</div>`+
+    (list.map(x=>`<div class="item"><span class="nm">${esc(x.name)}</span><select class="pis" data-act="tpilim" data-id="${t.id}" data-pi="${esc(x.id)}">${teamOpts(x.n)}</select><button class="del" data-act="tpidel" data-id="${t.id}" data-pi="${esc(x.id)}">해제</button></div>`).join('')||'<div style="font-size:12px;color:#888;padding:4px 0 8px">개별 설정된 연구책임자 없음 (모두 기본 한도)</div>')+
+    (free.length?`<div class="row"><select class="pis" id="tpiPi"><option value="">연구책임자 선택</option>${free.map(p=>`<option value="${esc(p.id)}">${esc(p.name)}</option>`).join('')}</select><select class="pis" id="tpiLim">${teamOpts(30)}</select><button data-act="tpiadd" data-id="${t.id}">추가</button></div>`:'<div style="font-size:12px;color:#888">추가할 연구책임자가 없습니다</div>')+`</div>`;
+}
 function renderTabList(){
   const el=$('#tabList'); if(!el) return;
   el.innerHTML=state.tabs.map((t,i)=>{
     const room=isRoom(t);
     let h=`<div class="item"><span class="mv"><button data-act="up" data-id="${t.id}" title="위로"${i===0?' disabled':''}>▲</button><button data-act="down" data-id="${t.id}" title="아래로"${i===state.tabs.length-1?' disabled':''}>▼</button></span><span class="nm">${esc(t.name)}</span>${room?'<span class="tag">챔버형</span><button data-act="cols" data-id="'+t.id+'">열 관리</button>':`<label class="xl">새벽 <select data-act="extra" data-id="${t.id}">${extraOpts(+t.extra||0)}</select></label><label class="xl">간격 <select data-act="step" data-id="${t.id}">${stepOpts(stepOf(t))}</select></label><label class="xl">1인 <select data-act="limit" data-id="${t.id}">${limitOpts(limitOf(t))}</select></label><label class="xl">팀 <select data-act="tlimit" data-id="${t.id}">${teamOpts(teamLimitOf(t))}</select></label>`}
-      <button data-act="ren" data-id="${t.id}">이름 변경</button><button class="del" data-act="del" data-id="${t.id}">삭제</button></div>`;
+      ${room?'':'<span class="brk"></span>'+btnTpi(t)}<button data-act="ren" data-id="${t.id}">이름 변경</button><button class="del" data-act="del" data-id="${t.id}">삭제</button></div>`;
+    if(!room&&state.tpiEdit===t.id) h+=tpiBlock(t);
     if(room&&state.colEdit===t.id){
       h+=`<div class="coled">${(t.cols||[]).map(c=>`<div class="item"><span class="nm">${esc(c.name)}</span>
         <button data-act="crn" data-id="${t.id}" data-cid="${esc(c.id)}">이름 변경</button><button class="del" data-act="cdel" data-id="${t.id}" data-cid="${esc(c.id)}">삭제</button></div>`).join('')}
@@ -1263,7 +1289,7 @@ function onPisChanged(){
   fillLgPi();
   if(state.user){ syncHeader(); renderGrid(); maybePromptPi(); }
   if(state.panelOpen){
-    renderPiList(); renderUserList();
+    renderPiList(); renderUserList(); if(isAdmin()) renderTabList();
     const nu=$('#nuPi'); if(nu){ const v=nu.value; nu.innerHTML=piOptions('','연구책임자 (선택)'); nu.value=validPi(v)?v:''; }
     const mp=$('#myPi'); if(mp&&state.user){ const v=mp.value; mp.innerHTML=piOptions(state.user.pi,'선택 안 됨'); mp.value=validPi(v)?v:(validPi(state.user.pi)?state.user.pi:''); }
   }
